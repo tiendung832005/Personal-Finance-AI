@@ -1,0 +1,28 @@
+CREATE TABLE transactions (
+      id                   BIGINT         NOT NULL AUTO_INCREMENT,
+      user_id              BIGINT         NOT NULL,
+      account_id           BIGINT         NOT NULL,
+      category_id          BIGINT             NULL,
+      family_id            BIGINT             NULL,
+      amount               DECIMAL(15,2)  NOT NULL,
+      type                 ENUM('INCOME','EXPENSE') NOT NULL,
+      description          VARCHAR(500)       NULL,
+      transaction_date     DATE           NOT NULL,
+      is_auto_categorized  BOOLEAN        NOT NULL DEFAULT FALSE,
+      is_anomaly           BOOLEAN        NOT NULL DEFAULT FALSE,
+      note                 TEXT               NULL,
+      deleted_at           DATETIME           NULL,
+      created_at           DATETIME       NOT NULL DEFAULT NOW(),
+      updated_at           DATETIME       NOT NULL DEFAULT NOW() ON UPDATE NOW(),
+
+            PRIMARY KEY (id),
+            CONSTRAINT fk_txn_user     FOREIGN KEY (user_id)     REFERENCES users(id)      ON DELETE CASCADE,
+            CONSTRAINT fk_txn_account  FOREIGN KEY (account_id)  REFERENCES accounts(id)   ON DELETE RESTRICT,
+            CONSTRAINT fk_txn_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+            CONSTRAINT fk_txn_family   FOREIGN KEY (family_id)   REFERENCES families(id)   ON DELETE SET NULL,
+            INDEX idx_txn_user_id       (user_id),
+            INDEX idx_txn_user_date     (user_id, transaction_date),
+            INDEX idx_txn_family_id     (family_id),
+            INDEX idx_txn_family_date   (family_id, transaction_date),
+            INDEX idx_txn_deleted_at    (deleted_at)
+);
