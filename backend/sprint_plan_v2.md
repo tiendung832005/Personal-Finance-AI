@@ -33,25 +33,6 @@ Family Finance **không nhỏ** như bạn nghĩ. Nó thêm vào:
 
 ## 🗃️ Database Schema Tổng Thể (Thiết kế trước khi code)
 
-> ⚠️ **Phải tự thiết kế — không nhờ AI**. Đây là quyết định kiến trúc quan trọng nhất.
-
-```
-users               → id, email, password_hash, full_name
-family_groups       → id, name, created_by (FK users)
-group_members       → id, group_id, user_id, role (ADMIN/MEMBER), joined_at
-group_invitations   → id, group_id, email, token, status, expires_at
-
-accounts            → id, user_id, group_id (nullable), name, type, balance, scope (PERSONAL/SHARED)
-categories          → id, user_id (nullable=system default), name, type, icon
-transactions        → id, user_id, account_id, category_id, group_id (nullable),
-                       amount, type, description, transaction_date,
-                       scope (PERSONAL/SHARED), is_auto_categorized, is_anomaly, deleted_at
-budgets             → id, user_id (nullable), group_id (nullable), category_id, amount, month
-
-ai_categorization_cache → description_hash, category_id, created_at
-ai_call_logs            → id, type, prompt_summary, response_summary, latency_ms, success, created_at
-insights                → id, user_id (nullable), group_id (nullable), month, content, created_at
-```
 
 **Quy tắc phân quyền data:**
 - `group_id = NULL` → personal, chỉ owner thấy

@@ -54,12 +54,15 @@ public class AccountServiceImpl implements AccountService {
                 ? "VND"
                 : request.getCurrency().trim().toUpperCase();
 
+        BigDecimal openingBalance =
+                request.getBalance() == null ? BigDecimal.ZERO : request.getBalance().stripTrailingZeros();
+
         Account account = Account.builder()
                 .user(user)
                 .familyId(request.getFamilyId())
                 .name(request.getName().trim())
                 .type(request.getType())
-                .balance(BigDecimal.ZERO)
+                .balance(openingBalance)
                 .currency(currency)
                 .defaultAccount(markDefault)
                 .build();

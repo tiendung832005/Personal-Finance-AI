@@ -1,74 +1,103 @@
 package com.data.personalfinanceinsightai.service.impl;
 
 import com.data.personalfinanceinsightai.service.AiService;
-import com.data.personalfinanceinsightai.dto.request.ChatCompletionRequest;
-import com.data.personalfinanceinsightai.dto.response.ChatCompletionResponse;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
-
-import java.util.Arrays;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 
 @Service
 public class AiServiceImpl implements AiService {
 
-    @Value("${openai.api-key}")
+    @Value("${gemini.api-key}")
     private String apiKey;
 
-    private final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-    private final String MODEL = "gpt-3.5-turbo";
+    @Value("${gemini.base-url:https://generativelanguage.googleapis.com}")
+    private String baseUrl;
 
-    private WebClient webClient;
-
-    private WebClient getWebClient() {
-        if (webClient == null) {
-            webClient = WebClient.create();
-        }
-        return webClient;
-    }
+    @Value("${gemini.model:gemini-2.0-flash}")
+    private String model;
 
     @Override
-    public String testOpenAiConnection() {
+    public String testGeminiConnection() {
         try {
-            String response = askChatGPT("Hello, are you working?");
-            return "✅ OpenAI connection successful! Response: " + response;
+            String response = askGemini("Hello, are you working?");
+            return "Gemini connection successful. Response: " + response;
         } catch (Exception e) {
-            return "❌ OpenAI connection failed! Error: " + e.getMessage();
+            return "Gemini connection failed. Error: " + e.getMessage();
         }
     }
 
     @Override
-    public String askChatGPT(String question) {
-        try {
-            // Tạo request
-            ChatCompletionRequest.ChatMessage userMessage = new ChatCompletionRequest.ChatMessage("user", question);
-            ChatCompletionRequest request = ChatCompletionRequest.builder()
-                    .model(MODEL)
-                    .messages(Arrays.asList(userMessage))
-                    .max_tokens(500)
-                    .temperature(0.7)
-                    .build();
+    public String askGemini(String question) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return "Gemini API key is missing. Please set GEMINI_API_KEY.";
+        }
 
-            // Gửi request và lấy response
-            ChatCompletionResponse response = getWebClient()
+        String prompt = question == null ? "" : question.trim();
+        if (prompt.isEmpty()) {
+            return "Question must not be empty.";
+        }
+
+        String uri = String.format("/v1beta/models/%s:generateContent?key=%s", model, apiKey);
+        Map<String, Object> payload = Map.of(
+                "contents",
+                List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
+
+        try {
+            GeminiGenerateResponse response = WebClient.builder()
+                    .baseUrl(baseUrl)
+                    .build()
                     .post()
-                    .uri(OPENAI_API_URL)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .bodyValue(request)
+                    .uri(uri)
+                    .bodyValue(payload)
                     .retrieve()
-                    .bodyToMono(ChatCompletionResponse.class)
+                    .bodyToMono(GeminiGenerateResponse.class)
+                    .timeout(Duration.ofSeconds(20))
                     .block();
 
-            if (response != null && !response.getChoices().isEmpty()) {
-                return response.getChoices().get(0).getMessage().getContent();
-            } else {
-                return "No response from OpenAI";
+            if (response == null
+                    || response.candidates() == null
+                    || response.candidates().isEmpty()
+                    || response.candidates().get(0).content() == null
+                    || response.candidates().get(0).content().parts() == null
+                    || response.candidates().get(0).content().parts().isEmpty()
+                    || response.candidates().get(0).content().parts().get(0).text() == null) {
+                return "Gemini returned no usable response.";
             }
-        } catch (Exception e) {
-            return "Error calling OpenAI API: " + e.getMessage();
+
+            return response.candidates().get(0).content().parts().get(0).text().trim();
+        } catch (WebClientResponseException ex) {
+            HttpStatusCode status = ex.getStatusCode();
+            if (status.value() == 401 || status.value() == 403) {
+                return "Gemini authorization failed. Check GEMINI_API_KEY.";
+            }
+            if (status.value() == 429) {
+                return "Gemini rate limit exceeded. Please retry later.";
+            }
+            return "Gemini API error (" + status.value() + ").";
+        } catch (WebClientRequestException ex) {
+            return "Gemini network/timeout error. Please retry.";
+        } catch (Exception ex) {
+            return "Unexpected Gemini integration error.";
         }
+    }
+
+    private record GeminiGenerateResponse(List<GeminiCandidate> candidates) {
+    }
+
+    private record GeminiCandidate(GeminiContent content) {
+    }
+
+    private record GeminiContent(List<GeminiPart> parts) {
+    }
+
+    private record GeminiPart(String text) {
     }
 }
 
