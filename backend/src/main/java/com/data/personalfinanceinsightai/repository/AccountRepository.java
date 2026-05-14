@@ -12,9 +12,11 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
     Optional<Account> findByIdAndUser_Id(Long id, Long userId);
 
-    List<Account> findByUser_IdOrderByCreatedAtDesc(Long userId);
+    Optional<Account> findByIdAndUser_IdAndDeletedAtIsNull(Long id, Long userId);
+
+    List<Account> findByUser_IdAndDeletedAtIsNullOrderByCreatedAtDesc(Long userId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE Account a SET a.defaultAccount = false WHERE a.user.id = :userId")
+    @Query("UPDATE Account a SET a.defaultAccount = false WHERE a.user.id = :userId AND a.deletedAt IS NULL")
     void clearDefaultAccountsForUser(@Param("userId") Long userId);
 }

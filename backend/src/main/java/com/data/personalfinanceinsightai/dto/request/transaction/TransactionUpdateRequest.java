@@ -1,6 +1,5 @@
 package com.data.personalfinanceinsightai.dto.request.transaction;
 
-import com.data.personalfinanceinsightai.entity.enums.TransactionType;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -12,22 +11,13 @@ import lombok.Setter;
 @Setter
 public class TransactionUpdateRequest {
 
-    private Long accountId;
-
     private Long categoryId;
 
-    private Long familyId;
-
-    @Positive
+    @Positive(message = "Amount must be positive")
     private BigDecimal amount;
-
-    private TransactionType type;
 
     @Size(max = 500)
     private String description;
 
     private LocalDate transactionDate;
-
-    @Size(max = 5000)
-    private String note;
 }

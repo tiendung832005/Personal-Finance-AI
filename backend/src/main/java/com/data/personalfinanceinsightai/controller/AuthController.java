@@ -1,6 +1,9 @@
 package com.data.personalfinanceinsightai.controller;
 
+import com.data.personalfinanceinsightai.dto.request.ForgotPasswordResetRequest;
+import com.data.personalfinanceinsightai.dto.request.GoogleAuthRequest;
 import com.data.personalfinanceinsightai.dto.request.LoginRequest;
+import com.data.personalfinanceinsightai.dto.request.OtpRequest;
 import com.data.personalfinanceinsightai.dto.request.RegisterRequest;
 import com.data.personalfinanceinsightai.dto.response.ApiResponse;
 import com.data.personalfinanceinsightai.dto.response.JwtResponse;
@@ -26,8 +29,28 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
+    @PostMapping("/google/request-otp")
+    public ResponseEntity<ApiResponse<Void>> requestGoogleOtp(@Valid @RequestBody OtpRequest request) {
+        return ResponseEntity.ok(authService.requestGoogleOtp(request));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<JwtResponse>> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/forgot-password/request-otp")
+    public ResponseEntity<ApiResponse<Void>> requestForgotPasswordOtp(@Valid @RequestBody OtpRequest request) {
+        return ResponseEntity.ok(authService.requestForgotPasswordOtp(request));
+    }
+
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<ApiResponse<Void>> resetPasswordWithOtp(@Valid @RequestBody ForgotPasswordResetRequest request) {
+        return ResponseEntity.ok(authService.resetPasswordWithOtp(request));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<ApiResponse<JwtResponse>> authWithGoogle(@Valid @RequestBody GoogleAuthRequest request) {
+        return ResponseEntity.ok(authService.authWithGoogle(request));
     }
 }
