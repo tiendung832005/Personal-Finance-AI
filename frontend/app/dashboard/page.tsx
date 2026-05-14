@@ -9,10 +9,17 @@ import { RecentTransactions } from '@/components/dashboard/recent-transactions'
 import { InsightCard } from '@/components/dashboard/insight-card'
 import { ExpenseChart } from '@/components/dashboard/expense-chart'
 import { TrendChart } from '@/components/dashboard/trend-chart'
-import {
-  formatCurrency,
-} from '@/lib/mock-data'
+import { formatCurrency } from '@/lib/mock-data'
 import { apiFetch, ApiError, decodeJwtPayload, getToken } from '@/lib/api'
+import {
+  num,
+  summaryToExpenseChartData,
+  trendApiToChartData,
+  trendFromTransactions,
+  type SummaryResponse,
+  type TrendMonthPoint,
+  type TrendResponse,
+} from '@/lib/summary'
 import { useToast } from '@/hooks/use-toast'
 import {
   TrendingUp,
@@ -21,6 +28,13 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 
+type TxRow = {
+  amount: number
+  type: 'INCOME' | 'EXPENSE'
+  transactionDate: string
+  isAnomaly?: boolean
+}
+
 export default function DashboardPage() {
   const { toast } = useToast()
   const currentMonth = new Date().toLocaleDateString('vi-VN', {
@@ -28,10 +42,12 @@ export default function DashboardPage() {
     year: 'numeric',
   })
 
+  const monthKey = new Date().toISOString().slice(0, 7)
+
   const [accountsBalance, setAccountsBalance] = useState(0)
-  const [transactions, setTransactions] = useState<
-    { amount: number; type: 'INCOME' | 'EXPENSE'; transactionDate: string; isAnomaly?: boolean }[]
-  >([])
+  const [transactions, setTransactions] = useState<TxRow[]>([])
+  const [summary, setSummary] = useState<SummaryResponse | null | undefined>(undefined)
+  const [trendFromApi, setTrendFromApi] = useState<TrendMonthPoint[] | null>(null)
   const [loading, setLoading] = useState(true)
 
   const userName = useMemo(() => {
@@ -46,46 +62,109 @@ export default function DashboardPage() {
   useEffect(() => {
     const run = async () => {
       setLoading(true)
-      try {
-        const [accRes, txRes] = await Promise.all([
-          apiFetch<{ balance: number }[]>('/api/accounts', { method: 'GET' }),
-          apiFetch<any[]>('/api/transactions', { method: 'GET' }),
-        ])
-        const balance = (accRes.data || []).reduce((sum: number, a: any) => sum + Number(a.balance || 0), 0)
+      setSummary(undefined)
+      setTrendFromApi(null)
+      const summaryPath = `/api/summary?month=${encodeURIComponent(monthKey)}`
+      const trendPath = `/api/summary/trend?months=6`
+
+      const settled = await Promise.allSettled([
+        apiFetch<{ balance: number }[]>('/api/accounts', { method: 'GET' }),
+        apiFetch<any[]>('/api/transactions', { method: 'GET' }),
+        apiFetch<SummaryResponse>(summaryPath, { method: 'GET' }),
+        apiFetch<TrendResponse>(trendPath, { method: 'GET' }),
+      ])
+
+      const errs: string[] = []
+
+      const accRes = settled[0]
+      if (accRes.status === 'fulfilled' && accRes.value.data) {
+        const balance = accRes.value.data.reduce(
+          (sum: number, a: { balance?: number }) => sum + Number(a.balance || 0),
+          0
+        )
         setAccountsBalance(balance)
-        setTransactions((txRes.data || []).map((t: any) => ({
-          amount: Number(t.amount || 0),
-          type: t.type,
-          transactionDate: t.transactionDate,
-          isAnomaly: t.isAnomaly,
-        })))
-      } catch (err: any) {
+      } else {
+        setAccountsBalance(0)
+        if (accRes.status === 'rejected') errs.push('Tài khoản')
+      }
+
+      const txRes = settled[1]
+      if (txRes.status === 'fulfilled' && txRes.value.data) {
+        setTransactions(
+          txRes.value.data.map((t: any) => ({
+            amount: Number(t.amount || 0),
+            type: t.type,
+            transactionDate: String(t.transactionDate || ''),
+            isAnomaly: Boolean(t.isAnomaly),
+          }))
+        )
+      } else {
+        setTransactions([])
+        if (txRes.status === 'rejected') errs.push('Giao dịch')
+      }
+
+      const sumRes = settled[2]
+      if (sumRes.status === 'fulfilled' && sumRes.value.data) {
+        setSummary(sumRes.value.data)
+      } else {
+        setSummary(null)
+        if (sumRes.status === 'rejected') {
+          const e = sumRes.reason
+          errs.push(
+            e instanceof ApiError ? e.message : 'Tổng quan (summary)'
+          )
+        } else {
+          errs.push('Tổng quan (summary)')
+        }
+      }
+
+      const trendRes = settled[3]
+      if (trendRes.status === 'fulfilled' && trendRes.value.data?.trend?.length) {
+        setTrendFromApi(trendApiToChartData(trendRes.value.data.trend))
+      } else {
+        setTrendFromApi(null)
+        if (trendRes.status === 'rejected') {
+          const e = trendRes.reason
+          errs.push(e instanceof ApiError ? e.message : 'Xu hướng (trend)')
+        }
+      }
+
+      if (errs.length) {
         toast({
-          title: 'Không tải được dashboard',
-          description: err instanceof ApiError ? err.message : 'Vui lòng đăng nhập lại.',
+          title: 'Một phần dữ liệu không tải được',
+          description: errs.join(' · '),
           variant: 'destructive',
         })
-      } finally {
-        setLoading(false)
       }
+
+      setLoading(false)
     }
     run()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [monthKey])
 
-  const monthKey = new Date().toISOString().slice(0, 7) // YYYY-MM
   const monthTx = useMemo(() => {
     return transactions.filter(t => String(t.transactionDate || '').startsWith(monthKey))
   }, [transactions, monthKey])
 
-  const totalIncome = useMemo(
+  const fallbackIncome = useMemo(
     () => monthTx.filter(t => t.type === 'INCOME').reduce((sum, t) => sum + t.amount, 0),
     [monthTx]
   )
-  const totalExpense = useMemo(
+  const fallbackExpense = useMemo(
     () => monthTx.filter(t => t.type === 'EXPENSE').reduce((sum, t) => sum + t.amount, 0),
     [monthTx]
   )
+
+  const totalIncome = summary ? num(summary.totalIncome) : fallbackIncome
+  const totalExpense = summary ? num(summary.totalExpense) : fallbackExpense
+  const currentBalance = summary ? num(summary.currentBalance) : accountsBalance
+
+  const expenseChartSlices = summary ? summaryToExpenseChartData(summary) : []
+  const trendPoints = useMemo(() => {
+    if (trendFromApi && trendFromApi.length > 0) return trendFromApi
+    return trendFromTransactions(transactions, 6)
+  }, [trendFromApi, transactions])
 
   const hasAnomaly = monthTx.some(t => Boolean(t.isAnomaly))
 
@@ -97,7 +176,6 @@ export default function DashboardPage() {
       />
 
       <div className="p-6">
-        {/* Anomaly Warning Banner */}
         {hasAnomaly && (
           <div className="mb-6 flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
             <AlertTriangle className="h-5 w-5 text-warning" />
@@ -110,38 +188,33 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Summary Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
             title="Tổng thu tháng này"
             value={loading ? '...' : formatCurrency(totalIncome)}
             icon={TrendingUp}
             variant="success"
-            trend={{ value: 12, isPositive: true }}
           />
           <SummaryCard
             title="Tổng chi tháng này"
             value={loading ? '...' : formatCurrency(totalExpense)}
             icon={TrendingDown}
             variant="danger"
-            trend={{ value: 8, isPositive: false }}
           />
           <SummaryCard
             title="Số dư hiện tại"
-            value={loading ? '...' : formatCurrency(accountsBalance)}
+            value={loading ? '...' : formatCurrency(currentBalance)}
             icon={Wallet}
             variant="default"
           />
           <HealthScoreCard score={78} size="sm" />
         </div>
 
-        {/* Charts Row */}
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <ExpenseChart />
-          <TrendChart />
+          <ExpenseChart data={expenseChartSlices} loading={loading} />
+          <TrendChart data={trendPoints} loading={loading} />
         </div>
 
-        {/* Insights and Transactions */}
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <RecentTransactions />
@@ -153,7 +226,10 @@ export default function DashboardPage() {
                 id: 'placeholder',
                 type: 'tip',
                 title: 'Gợi ý',
-                description: 'Backend chưa có endpoint insight/health-score. Bạn có thể nối khi Sprint 7 xong.',
+                description:
+                  summary && num(summary.netBalance) < 0
+                    ? `Tháng này chi nhiều hơn thu ${formatCurrency(Math.abs(num(summary.netBalance)))}. Cân nhắc rà soát các danh mục chi lớn trên biểu đồ.`
+                    : 'Backend chưa có endpoint insight/health-score. Bạn có thể nối khi Sprint 7 xong.',
                 icon: 'lightbulb',
                 date: new Date().toISOString().slice(0, 10),
               }}

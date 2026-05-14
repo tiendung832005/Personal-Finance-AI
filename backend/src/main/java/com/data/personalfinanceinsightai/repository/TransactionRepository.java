@@ -27,4 +27,56 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("type") TransactionType type,
             @Param("monthStart") LocalDate monthStart,
             @Param("monthEnd") LocalDate monthEnd);
+
+    @Query(
+            value =
+                    """
+            SELECT type, COALESCE(SUM(amount), 0) AS total
+            FROM transactions
+            WHERE user_id = :userId
+              AND deleted_at IS NULL
+              AND family_id IS NULL
+              AND DATE_FORMAT(transaction_date, '%Y-%m') = :month
+            GROUP BY type
+            """,
+            nativeQuery = true)
+    List<Object[]> sumAmountByTypeForUserAndMonth(@Param("userId") Long userId, @Param("month") String month);
+
+    @Query(
+            value =
+                    """
+            SELECT c.id, c.name, c.type,
+                   COALESCE(SUM(t.amount), 0) AS total,
+                   COUNT(t.id) AS txn_count
+            FROM categories c
+            INNER JOIN transactions t ON t.category_id = c.id
+                AND t.user_id = :userId
+                AND t.deleted_at IS NULL
+                AND t.family_id IS NULL
+                AND DATE_FORMAT(t.transaction_date, '%Y-%m') = :month
+            GROUP BY c.id, c.name, c.type
+            ORDER BY total DESC
+            """,
+            nativeQuery = true)
+    List<Object[]> categoryBreakdownForUserAndMonth(@Param("userId") Long userId, @Param("month") String month);
+
+    @Query(
+            value =
+                    """
+            SELECT DATE_FORMAT(transaction_date, '%Y-%m') AS ym,
+                   type,
+                   COALESCE(SUM(amount), 0) AS total
+            FROM transactions
+            WHERE user_id = :userId
+              AND deleted_at IS NULL
+              AND family_id IS NULL
+              AND transaction_date >= :fromInclusive
+              AND transaction_date <= :toInclusive
+            GROUP BY DATE_FORMAT(transaction_date, '%Y-%m'), type
+            """,
+            nativeQuery = true)
+    List<Object[]> sumAmountByTypeGroupedByMonthRange(
+            @Param("userId") Long userId,
+            @Param("fromInclusive") LocalDate fromInclusive,
+            @Param("toInclusive") LocalDate toInclusive);
 }

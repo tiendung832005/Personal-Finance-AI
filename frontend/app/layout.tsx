@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: "Personal Finance Insight AI - Quản lý tài chính thông minh",
   description:
     "Ứng dụng quản lý thu chi cá nhân và gia đình tích hợp AI, giúp bạn kiểm soát tài chính hiệu quả",
-  generator: "v0.app",
+  generator: "",
   icons: {
     icon: [
       {

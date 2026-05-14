@@ -42,6 +42,7 @@ type Category = { id: number; name: string; icon: string | null; color: string |
 type Account = { id: number; name: string }
 type Transaction = {
   id: number
+  accountId: number
   amount: number
   type: 'INCOME' | 'EXPENSE'
   description: string | null

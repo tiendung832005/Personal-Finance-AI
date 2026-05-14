@@ -13,3 +13,4 @@ CREATE TABLE family_budgets (
      CONSTRAINT fk_fb_user     FOREIGN KEY (created_by)  REFERENCES users(id)      ON DELETE RESTRICT,
      INDEX idx_family_budgets_month (family_id, month)
 );
+

@@ -1,6 +1,7 @@
 package com.data.personalfinanceinsightai.repository;
 
 import com.data.personalfinanceinsightai.entity.Account;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,4 +20,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Account a SET a.defaultAccount = false WHERE a.user.id = :userId AND a.deletedAt IS NULL")
     void clearDefaultAccountsForUser(@Param("userId") Long userId);
+
+    @Query("SELECT COALESCE(SUM(a.balance), 0) FROM Account a WHERE a.user.id = :userId AND a.deletedAt IS NULL")
+    BigDecimal sumBalanceForUser(@Param("userId") Long userId);
 }
