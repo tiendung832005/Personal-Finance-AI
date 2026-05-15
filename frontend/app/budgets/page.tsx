@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dialog'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -33,7 +32,19 @@ import {
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/mock-data'
 import { apiFetch, ApiError } from '@/lib/api'
-import { budgetAmount, expenseTotalsByCategory, type BudgetRow } from '@/lib/budget'
+import { num } from '@/lib/summary'
+import {
+  budgetAmount,
+  expenseTotalsByCategory,
+  inferBudgetLineStatusFromPct,
+  statusBarClass,
+  statusLabelVi,
+  statusTextClass,
+  type BudgetRow,
+  type BudgetStatusItem,
+  type BudgetStatusResponse,
+  type BudgetLineStatus,
+} from '@/lib/budget'
 import { useToast } from '@/hooks/use-toast'
 import {
   Plus,
@@ -81,6 +92,7 @@ export default function BudgetsPage() {
 
   const [budgets, setBudgets] = useState<BudgetRow[]>([])
   const [categories, setCategories] = useState<CategoryOpt[]>([])
+  const [budgetStatus, setBudgetStatus] = useState<BudgetStatusResponse | null>(null)
   const [txMonth, setTxMonth] = useState<
     { amount: number; type: string; categoryId?: number | null; transactionDate?: string }[]
   >([])
@@ -103,24 +115,45 @@ export default function BudgetsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setBudgetStatus(null)
     try {
-      const [budRes, catRes, txRes] = await Promise.all([
+      const [budRes, catRes] = await Promise.all([
         apiFetch<BudgetRow[]>(`/api/budgets?month=${encodeURIComponent(monthKey)}`, {
           method: 'GET',
         }),
         apiFetch<CategoryOpt[]>('/api/categories', { method: 'GET' }),
-        apiFetch<
-          { amount: number | string; type: string; categoryId?: number | null; transactionDate?: string }[]
-        >(`/api/transactions?month=${encodeURIComponent(monthKey)}`, { method: 'GET' }),
       ])
       setBudgets((budRes.data || []).map(b => ({ ...b, amount: Number(b.amount) })))
       setCategories(catRes.data || [])
-      setTxMonth(
-        (txRes.data || []).map(t => ({
-          ...t,
-          amount: Number(t.amount),
-        }))
-      )
+
+      try {
+        const stRes = await apiFetch<BudgetStatusResponse>(
+          `/api/budgets/status?month=${encodeURIComponent(monthKey)}`,
+          { method: 'GET' }
+        )
+        setBudgetStatus(stRes.data ?? null)
+        setTxMonth([])
+      } catch {
+        setBudgetStatus(null)
+        try {
+          const txRes = await apiFetch<
+            { amount: number | string; type: string; categoryId?: number | null; transactionDate?: string }[]
+          >(`/api/transactions?month=${encodeURIComponent(monthKey)}`, { method: 'GET' })
+          setTxMonth(
+            (txRes.data || []).map(t => ({
+              ...t,
+              amount: Number(t.amount),
+            }))
+          )
+        } catch {
+          setTxMonth([])
+        }
+        toast({
+          title: 'Không tải được trạng thái ngân sách',
+          description: 'Đang dùng tổng chi tính từ giao dịch trên máy bạn.',
+          variant: 'destructive',
+        })
+      }
     } catch (e) {
       toast({
         title: 'Không tải được ngân sách',
@@ -129,6 +162,7 @@ export default function BudgetsPage() {
       })
       setBudgets([])
       setCategories([])
+      setBudgetStatus(null)
       setTxMonth([])
     } finally {
       setLoading(false)
@@ -141,6 +175,66 @@ export default function BudgetsPage() {
 
   const spentByCat = useMemo(() => expenseTotalsByCategory(txMonth, monthKey), [txMonth, monthKey])
 
+  const statusByCategory = useMemo(() => {
+    const m = new Map<number, BudgetStatusItem>()
+    for (const it of budgetStatus?.items ?? []) {
+      m.set(it.categoryId, it)
+    }
+    return m
+  }, [budgetStatus])
+
+  type BudgetCardRow = {
+    budget: BudgetRow
+    spent: number
+    amount: number
+    remaining: number
+    usedPct: number
+    lineStatus: BudgetLineStatus
+  }
+
+  const rowsWithSpent = useMemo((): BudgetCardRow[] => {
+    return budgets.map(budget => {
+      const st = statusByCategory.get(budget.categoryId)
+      const amountBase = budgetAmount(budget)
+      if (st) {
+        return {
+          budget,
+          spent: num(st.actualAmount),
+          amount: num(st.budgetAmount),
+          remaining: num(st.remainingAmount),
+          usedPct: st.usedPercentage,
+          lineStatus: st.status,
+        }
+      }
+      const spent = spentByCat.get(budget.categoryId) || 0
+      const amount = amountBase
+      const usedPct = amount > 0 ? (spent / amount) * 100 : 0
+      return {
+        budget,
+        spent,
+        amount,
+        remaining: amount - spent,
+        usedPct,
+        lineStatus: inferBudgetLineStatusFromPct(usedPct),
+      }
+    })
+  }, [budgets, statusByCategory, spentByCat])
+
+  const totalBudget = budgetStatus
+    ? num(budgetStatus.totalBudget)
+    : rowsWithSpent.reduce((s, r) => s + r.amount, 0)
+  const totalSpent = budgetStatus
+    ? num(budgetStatus.totalActual)
+    : rowsWithSpent.reduce((s, r) => s + r.spent, 0)
+  const totalRemaining = budgetStatus
+    ? num(budgetStatus.totalRemaining)
+    : totalBudget - totalSpent
+  const overallPercentage = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0
+  const overallLineStatus =
+    totalBudget > 0
+      ? inferBudgetLineStatusFromPct((totalSpent / totalBudget) * 100)
+      : ('OK' as BudgetLineStatus)
+
   const expenseCategories = useMemo(
     () => categories.filter(c => c.type === 'EXPENSE' || c.type === 'BOTH'),
     [categories]
@@ -152,46 +246,12 @@ export default function BudgetsPage() {
     [expenseCategories, existingCategoryIds]
   )
 
-  const rowsWithSpent = useMemo(
-    () =>
-      budgets.map(b => ({
-        budget: b,
-        spent: spentByCat.get(b.categoryId) || 0,
-        amount: budgetAmount(b),
-      })),
-    [budgets, spentByCat]
-  )
-
-  const totalBudget = rowsWithSpent.reduce((s, r) => s + r.amount, 0)
-  const totalSpent = rowsWithSpent.reduce((s, r) => s + r.spent, 0)
-  const totalRemaining = totalBudget - totalSpent
-  const overallPercentage = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0
-
   const goToPrevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
   }
 
   const goToNextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
-  }
-
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 90) return 'bg-destructive'
-    if (percentage >= 70) return 'bg-warning'
-    return 'bg-success'
-  }
-
-  const getStatusText = (percentage: number) => {
-    if (percentage >= 100) return 'Vượt ngân sách'
-    if (percentage >= 90) return 'Gần hết'
-    if (percentage >= 70) return 'Cẩn thận'
-    return 'Ổn định'
-  }
-
-  const getStatusColor = (percentage: number) => {
-    if (percentage >= 90) return 'text-destructive'
-    if (percentage >= 70) return 'text-warning'
-    return 'text-success'
   }
 
   const openEdit = (b: BudgetRow) => {
@@ -365,7 +425,9 @@ export default function BudgetsPage() {
             </div>
             <div className="hidden h-10 w-px bg-border sm:block" />
             <div>
-              <p className="text-sm text-muted-foreground">Đã chi (theo giao dịch tháng)</p>
+              <p className="text-sm text-muted-foreground">
+                Đã chi{budgetStatus ? '' : ' (tính trên máy)'}
+              </p>
               <p className="text-2xl font-bold tabular-nums text-destructive">
                 {loading ? '…' : formatCurrency(totalSpent)}
               </p>
@@ -385,13 +447,13 @@ export default function BudgetsPage() {
             <div className="w-full sm:w-auto sm:max-w-[200px] sm:flex-1">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Tiến độ tổng</span>
-                <span className={cn('text-sm font-medium', getStatusColor(overallPercentage))}>
+                <span className={cn('text-sm font-medium', statusTextClass(overallLineStatus))}>
                   {loading ? '…' : `${overallPercentage}%`}
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                 <div
-                  className={cn('h-full transition-all', getProgressColor(overallPercentage))}
+                  className={cn('h-full transition-all', statusBarClass(overallLineStatus))}
                   style={{ width: `${Math.min(overallPercentage, 100)}%` }}
                 />
               </div>
@@ -405,12 +467,14 @@ export default function BudgetsPage() {
           <p className="text-sm text-muted-foreground">Chưa có ngân sách cho tháng này.</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {rowsWithSpent.map(({ budget, spent, amount }) => {
+            {rowsWithSpent.map(({ budget, spent, amount, remaining, usedPct, lineStatus }) => {
               const category = categories.find(c => c.id === budget.categoryId)
               const iconKey = String(category?.icon || '')
               const Icon = iconMap[iconKey] || MoreHorizontal
-              const percentage = amount > 0 ? Math.round((spent / amount) * 100) : 0
-              const remaining = amount - spent
+              const pctLabel =
+                Math.abs(usedPct - Math.round(usedPct)) < 1e-6
+                  ? String(Math.round(usedPct))
+                  : usedPct.toFixed(1)
               const color = category?.color || '#9E9890'
 
               return (
@@ -430,8 +494,8 @@ export default function BudgetsPage() {
                         <h3 className="font-semibold text-foreground">
                           {category?.name || budget.categoryName}
                         </h3>
-                        <p className={cn('text-sm font-medium', getStatusColor(percentage))}>
-                          {getStatusText(percentage)}
+                        <p className={cn('text-sm font-medium', statusTextClass(lineStatus))}>
+                          {statusLabelVi(lineStatus)}
                         </p>
                       </div>
                     </div>
@@ -467,13 +531,13 @@ export default function BudgetsPage() {
 
                     <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary">
                       <div
-                        className={cn('h-full transition-all', getProgressColor(percentage))}
-                        style={{ width: `${Math.min(percentage, 100)}%` }}
+                        className={cn('h-full transition-all', statusBarClass(lineStatus))}
+                        style={{ width: `${Math.min(Math.round(usedPct), 100)}%` }}
                       />
                     </div>
 
                     <div className="mt-2 flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{percentage}%</span>
+                      <span className="text-muted-foreground">{pctLabel}%</span>
                       <span
                         className={cn(
                           'tabular-nums',

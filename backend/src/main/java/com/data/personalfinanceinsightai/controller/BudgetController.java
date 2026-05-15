@@ -4,6 +4,7 @@ import com.data.personalfinanceinsightai.dto.request.budget.BudgetCreateRequest;
 import com.data.personalfinanceinsightai.dto.request.budget.BudgetUpdateRequest;
 import com.data.personalfinanceinsightai.dto.response.ApiResponse;
 import com.data.personalfinanceinsightai.dto.response.budget.BudgetResponse;
+import com.data.personalfinanceinsightai.dto.response.budget.BudgetStatusResponse;
 import com.data.personalfinanceinsightai.service.BudgetService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -37,6 +38,16 @@ public class BudgetController {
                     .body(ApiResponse.error("Unauthorized"));
         }
         return ResponseEntity.ok(ApiResponse.success(budgetService.listForUser(principal.getUsername(), month)));
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<ApiResponse<BudgetStatusResponse>> getStatus(
+            @AuthenticationPrincipal UserDetails principal, @RequestParam String month) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Unauthorized"));
+        }
+        return ResponseEntity.ok(ApiResponse.success(budgetService.getBudgetStatus(principal.getUsername(), month)));
     }
 
     @PostMapping

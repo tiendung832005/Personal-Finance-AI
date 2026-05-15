@@ -3,6 +3,7 @@ package com.data.personalfinanceinsightai.service;
 import com.data.personalfinanceinsightai.dto.request.budget.BudgetCreateRequest;
 import com.data.personalfinanceinsightai.dto.request.budget.BudgetUpdateRequest;
 import com.data.personalfinanceinsightai.dto.response.budget.BudgetResponse;
+import com.data.personalfinanceinsightai.dto.response.budget.BudgetStatusResponse;
 import java.util.List;
 
 public interface BudgetService {
@@ -14,4 +15,6 @@ public interface BudgetService {
     BudgetResponse update(String email, Long id, BudgetUpdateRequest request);
 
     void delete(String email, Long id);
+
+    BudgetStatusResponse getBudgetStatus(String email, String month);
 }
