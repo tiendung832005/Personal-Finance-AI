@@ -13,6 +13,12 @@ import { Sparkles, Eye, EyeOff, ArrowRight } from "lucide-react";
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+
+  const afterLoginPath = () => {
+    if (typeof window === "undefined") return "/dashboard";
+    const redirect = new URLSearchParams(window.location.search).get("redirect");
+    return redirect && redirect.startsWith("/") ? redirect : "/dashboard";
+  };
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -41,7 +47,7 @@ export default function LoginPage() {
       const token = res.data?.token;
       if (!token) throw new Error("Missing token");
       setToken(token);
-      router.push("/dashboard");
+      router.push(afterLoginPath());
     } catch (err: any) {
       const message =
         err instanceof ApiError ? err.message : "Đăng nhập thất bại";
@@ -84,7 +90,7 @@ export default function LoginPage() {
     const token = authRes.data?.token;
     if (!token) throw new Error("Missing token");
     setToken(token);
-    router.push("/dashboard");
+    router.push(afterLoginPath());
   };
 
   const initGoogle = async () => {
@@ -230,7 +236,7 @@ export default function LoginPage() {
       const token = authRes.data?.token;
       if (!token) throw new Error("Missing token");
       setToken(token);
-      router.push("/dashboard");
+      router.push(afterLoginPath());
     } catch (err: any) {
       toast({
         title: "OTP không hợp lệ",

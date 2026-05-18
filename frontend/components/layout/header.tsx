@@ -1,8 +1,8 @@
 'use client'
 
-import { Bell, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { InvitationNotifications } from '@/components/layout/invitation-notifications'
 
 interface HeaderProps {
   title: string
@@ -27,10 +27,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             className="w-64 pl-9"
           />
         </div>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-        </Button>
+        <InvitationNotifications />
       </div>
     </header>
   )
