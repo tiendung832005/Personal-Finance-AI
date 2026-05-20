@@ -28,6 +28,10 @@ export function setToken(token: string | null) {
   else localStorage.setItem(TOKEN_KEY, token)
 }
 
+export function logout() {
+  setToken(null)
+}
+
 export function getApiBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
 }

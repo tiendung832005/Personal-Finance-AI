@@ -1,5 +1,6 @@
 package com.data.personalfinanceinsightai.entity;
 
+import com.data.personalfinanceinsightai.entity.enums.TransactionScope;
 import com.data.personalfinanceinsightai.entity.enums.TransactionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -50,6 +51,11 @@ public class Transaction {
 
     @Column(name = "family_id")
     private Long familyId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private TransactionScope scope = TransactionScope.PERSONAL;
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;

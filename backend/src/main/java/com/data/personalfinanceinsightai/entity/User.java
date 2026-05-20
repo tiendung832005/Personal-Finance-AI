@@ -40,6 +40,9 @@ public class User {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    @Column(length = 20)
+    private String phone;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean active = true;

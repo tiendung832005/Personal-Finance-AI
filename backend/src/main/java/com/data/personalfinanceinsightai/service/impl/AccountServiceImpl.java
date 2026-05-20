@@ -5,6 +5,7 @@ import com.data.personalfinanceinsightai.dto.request.account.AccountUpdateReques
 import com.data.personalfinanceinsightai.dto.response.account.AccountResponse;
 import com.data.personalfinanceinsightai.entity.Account;
 import com.data.personalfinanceinsightai.entity.User;
+import com.data.personalfinanceinsightai.entity.enums.AccountScope;
 import com.data.personalfinanceinsightai.exception.ResourceNotFoundException;
 import com.data.personalfinanceinsightai.repository.AccountRepository;
 import com.data.personalfinanceinsightai.repository.TransactionRepository;
@@ -31,7 +32,10 @@ public class AccountServiceImpl implements AccountService {
         User user = userRepository
                 .findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return accountRepository.findByUser_IdAndDeletedAtIsNullOrderByCreatedAtDesc(user.getId()).stream()
+        return accountRepository
+                .findByUser_IdAndFamilyIdIsNullAndScopeAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        user.getId(), AccountScope.PERSONAL)
+                .stream()
                 .map(AccountResponse::fromEntity)
                 .toList();
     }
@@ -42,12 +46,6 @@ public class AccountServiceImpl implements AccountService {
         User user = userRepository
                 .findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        if (request.getFamilyId() != null) {
-            if (user.getFamilyId() == null || !user.getFamilyId().equals(request.getFamilyId())) {
-                throw new IllegalArgumentException("familyId is not allowed for this user");
-            }
-        }
 
         boolean markDefault = Boolean.TRUE.equals(request.getDefaultAccount());
         if (markDefault) {
@@ -63,7 +61,8 @@ public class AccountServiceImpl implements AccountService {
 
         Account account = Account.builder()
                 .user(user)
-                .familyId(request.getFamilyId())
+                .familyId(null)
+                .scope(AccountScope.PERSONAL)
                 .name(request.getName().trim())
                 .type(request.getType())
                 .balance(openingBalance)

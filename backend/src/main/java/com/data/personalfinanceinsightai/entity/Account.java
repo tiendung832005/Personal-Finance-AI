@@ -1,5 +1,6 @@
 package com.data.personalfinanceinsightai.entity;
 
+import com.data.personalfinanceinsightai.entity.enums.AccountScope;
 import com.data.personalfinanceinsightai.entity.enums.AccountType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,6 +41,11 @@ public class Account {
 
     @Column(name = "family_id")
     private Long familyId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private AccountScope scope = AccountScope.PERSONAL;
 
     @Column(nullable = false, length = 100)
     private String name;

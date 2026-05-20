@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -17,8 +17,10 @@ import {
   LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { currentUser } from '@/lib/mock-data'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { useCurrentUser } from '@/hooks/use-current-user'
+import { profileInitials } from '@/lib/user'
+import { logout } from '@/lib/api'
 
 const navItems = [
   { href: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
@@ -32,14 +34,18 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const { user } = useCurrentUser()
 
-  const initials = currentUser.name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .slice(-2)
-    .toUpperCase()
+  const displayName = user?.fullName ?? 'Tài khoản'
+  const displayEmail = user?.email ?? ''
+  const initials = user ? profileInitials(user.fullName) : '?'
+
+  const handleLogout = () => {
+    logout()
+    router.push('/')
+  }
 
   return (
     <aside
@@ -48,7 +54,6 @@ export function Sidebar() {
         collapsed ? 'w-[72px]' : 'w-64'
       )}
     >
-      {/* Header */}
       <div className="flex h-16 items-center justify-between border-b border-border px-4">
         {!collapsed && (
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -67,7 +72,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map(item => {
           const isActive =
@@ -94,7 +98,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User section */}
       <div className="border-t border-border p-3">
         <div
           className={cn(
@@ -103,29 +106,31 @@ export function Sidebar() {
           )}
         >
           <Avatar className="h-9 w-9 shrink-0">
+            {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={displayName} />}
             <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
               {initials}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex-1 truncate">
-              <p className="truncate text-sm font-medium text-foreground">
-                {currentUser.name}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {currentUser.email}
-              </p>
+              <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+              <p className="truncate text-xs text-muted-foreground">{displayEmail}</p>
             </div>
           )}
           {!collapsed && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={handleLogout}
+              title="Đăng xuất"
+            >
               <LogOut className="h-4 w-4" />
             </Button>
           )}
         </div>
       </div>
 
-      {/* Collapse button */}
       <Button
         variant="ghost"
         size="icon"

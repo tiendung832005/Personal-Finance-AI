@@ -34,6 +34,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { GroupAccountsTab } from '@/components/family/group-accounts-tab'
+import { GroupBudgetsTab } from '@/components/family/group-budgets-tab'
+import { GroupByMemberTab } from '@/components/family/group-by-member-tab'
+import { GroupOverviewTab } from '@/components/family/group-overview-tab'
+import { GroupTransactionsTab } from '@/components/family/group-transactions-tab'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   deleteGroup,
   getCurrentUserEmail,
@@ -61,10 +67,15 @@ import {
   Loader2,
   LogOut,
   Mail,
+  PieChart,
   Shield,
   Trash2,
   UserMinus,
   UserPlus,
+  Users,
+  Wallet,
+  Receipt,
+  Target,
 } from 'lucide-react'
 
 export default function GroupDetailPage() {
@@ -88,6 +99,7 @@ export default function GroupDetailPage() {
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
 
   const isAdmin = group?.myRole === 'ADMIN'
   const myEmail = getCurrentUserEmail()
@@ -242,7 +254,10 @@ export default function GroupDetailPage() {
 
   return (
     <DashboardLayout>
-      <Header title={group.name} subtitle={group.description || 'Quản lý thành viên nhóm'} />
+      <Header
+        title={group.name}
+        subtitle={group.description || 'Tài chính chung & quản lý thành viên'}
+      />
 
       <div className="p-6 space-y-6">
         <div className="flex flex-wrap items-center gap-3">
@@ -322,6 +337,59 @@ export default function GroupDetailPage() {
           </div>
         </div>
 
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="flex h-auto flex-wrap w-full justify-start gap-1">
+            <TabsTrigger value="overview" className="gap-1.5">
+              <PieChart className="h-4 w-4" />
+              Tổng quan
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="gap-1.5">
+              <Receipt className="h-4 w-4" />
+              Giao dịch
+            </TabsTrigger>
+            <TabsTrigger value="accounts" className="gap-1.5">
+              <Wallet className="h-4 w-4" />
+              Tài khoản
+            </TabsTrigger>
+            <TabsTrigger value="budgets" className="gap-1.5">
+              <Target className="h-4 w-4" />
+              Ngân sách
+            </TabsTrigger>
+            <TabsTrigger value="by-member" className="gap-1.5">
+              <Users className="h-4 w-4" />
+              Theo thành viên
+            </TabsTrigger>
+            <TabsTrigger value="members" className="gap-1.5">
+              <Shield className="h-4 w-4" />
+              Thành viên
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-6">
+            <GroupOverviewTab groupId={groupId} />
+          </TabsContent>
+
+          <TabsContent value="transactions" className="mt-6">
+            <GroupTransactionsTab
+              groupId={groupId}
+              isAdmin={!!isAdmin}
+              currentUserId={myMember?.userId}
+            />
+          </TabsContent>
+
+          <TabsContent value="accounts" className="mt-6">
+            <GroupAccountsTab groupId={groupId} isAdmin={!!isAdmin} />
+          </TabsContent>
+
+          <TabsContent value="budgets" className="mt-6">
+            <GroupBudgetsTab groupId={groupId} isAdmin={!!isAdmin} />
+          </TabsContent>
+
+          <TabsContent value="by-member" className="mt-6">
+            <GroupByMemberTab groupId={groupId} />
+          </TabsContent>
+
+          <TabsContent value="members" className="mt-6 space-y-6">
         {isAdmin && invitations.length > 0 && (
           <section className="rounded-xl border border-border bg-card p-5">
             <h3 className="font-semibold flex items-center gap-2">
@@ -434,6 +502,8 @@ export default function GroupDetailPage() {
             })}
           </ul>
         </section>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <AlertDialog open={!!kickTarget} onOpenChange={open => !open && setKickTarget(null)}>

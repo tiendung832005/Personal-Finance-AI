@@ -8,6 +8,7 @@ import com.data.personalfinanceinsightai.entity.Category;
 import com.data.personalfinanceinsightai.entity.Transaction;
 import com.data.personalfinanceinsightai.entity.User;
 import com.data.personalfinanceinsightai.entity.enums.CategoryType;
+import com.data.personalfinanceinsightai.entity.enums.TransactionScope;
 import com.data.personalfinanceinsightai.entity.enums.TransactionType;
 import com.data.personalfinanceinsightai.exception.ResourceNotFoundException;
 import com.data.personalfinanceinsightai.repository.AccountRepository;
@@ -69,7 +70,8 @@ public class TransactionServiceImpl implements TransactionService {
                 .user(user)
                 .account(account)
                 .category(category)
-                .familyId(request.getFamilyId())
+                .familyId(null)
+                .scope(TransactionScope.PERSONAL)
                 .amount(request.getAmount())
                 .type(request.getType())
                 .description(trimToNull(request.getDescription()))

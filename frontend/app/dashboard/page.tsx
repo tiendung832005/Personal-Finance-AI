@@ -10,7 +10,7 @@ import { InsightCard } from '@/components/dashboard/insight-card'
 import { ExpenseChart } from '@/components/dashboard/expense-chart'
 import { TrendChart } from '@/components/dashboard/trend-chart'
 import { formatCurrency } from '@/lib/mock-data'
-import { apiFetch, ApiError, decodeJwtPayload, getToken } from '@/lib/api'
+import { apiFetch, ApiError, getToken } from '@/lib/api'
 import {
   num,
   summaryToExpenseChartData,
@@ -21,6 +21,7 @@ import {
   type TrendResponse,
 } from '@/lib/summary'
 import { PendingInvitationsPanel } from '@/components/family/pending-invitations-panel'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import { useToast } from '@/hooks/use-toast'
 import {
   TrendingUp,
@@ -51,14 +52,8 @@ export default function DashboardPage() {
   const [trendFromApi, setTrendFromApi] = useState<TrendMonthPoint[] | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const userName = useMemo(() => {
-    const token = getToken()
-    if (!token) return 'bạn'
-    const payload = decodeJwtPayload(token)
-    const email = payload?.sub || payload?.email
-    if (!email) return 'bạn'
-    return String(email).split('@')[0]
-  }, [])
+  const { user } = useCurrentUser()
+  const userName = user?.fullName?.split(' ').slice(-1)[0] ?? 'bạn'
 
   useEffect(() => {
     const run = async () => {
