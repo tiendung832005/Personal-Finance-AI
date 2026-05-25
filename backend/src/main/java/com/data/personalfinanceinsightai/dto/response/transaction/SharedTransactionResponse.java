@@ -3,6 +3,7 @@ package com.data.personalfinanceinsightai.dto.response.transaction;
 import com.data.personalfinanceinsightai.entity.Transaction;
 import com.data.personalfinanceinsightai.entity.enums.TransactionScope;
 import com.data.personalfinanceinsightai.entity.enums.TransactionType;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +26,10 @@ public class SharedTransactionResponse {
     private Long createdByUserId;
     private String createdByName;
     private TransactionScope scope;
+
+    @JsonProperty("isAutoCategorized")
+    private boolean autoCategorized;
+
     private LocalDateTime createdAt;
 
     public static SharedTransactionResponse fromEntity(Transaction transaction) {
@@ -44,6 +49,7 @@ public class SharedTransactionResponse {
                 .createdByUserId(transaction.getUser().getId())
                 .createdByName(transaction.getUser().getFullName())
                 .scope(transaction.getScope())
+                .autoCategorized(Boolean.TRUE.equals(transaction.getAutoCategorized()))
                 .createdAt(transaction.getCreatedAt())
                 .build();
     }

@@ -35,4 +35,6 @@ public class TransactionCreateRequest {
 
     @Size(max = 5000)
     private String note;
+
+    private Boolean isAutoCategorized;
 }

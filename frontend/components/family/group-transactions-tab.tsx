@@ -89,10 +89,51 @@ export function GroupTransactionsTab({ groupId, isAdmin, currentUserId }: Props)
   const [accountId, setAccountId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
 
+  const [aiSuggestion, setAiSuggestion] = useState<any>(null)
+  const [isLoadingAI, setIsLoadingAI] = useState(false)
+
   const monthLabel = currentMonth.toLocaleDateString('vi-VN', {
     month: 'long',
     year: 'numeric',
   })
+
+  // Debounce AI category suggestion
+  useEffect(() => {
+    setAiSuggestion(null)
+    if (!description || description.trim().length < 2) {
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsLoadingAI(true)
+      try {
+        const res = await apiFetch<any>('/api/transactions/categorize', {
+          method: 'POST',
+          body: JSON.stringify({ description }),
+        })
+        const suggestion = res.data
+
+        if (suggestion?.successful) {
+          setAiSuggestion(prevAi => {
+            setCategoryId(currentCatId => {
+              const isAiDriven = prevAi && currentCatId === String(prevAi.categoryId)
+              if (!currentCatId || isAiDriven) {
+                return String(suggestion.categoryId)
+              }
+              return currentCatId
+            })
+            return suggestion
+          })
+        }
+      } catch {
+        // fail
+      } finally {
+        setIsLoadingAI(false)
+      }
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [description])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -142,11 +183,13 @@ export function GroupTransactionsTab({ groupId, isAdmin, currentUserId }: Props)
         type: txType,
         description: description.trim() || undefined,
         transactionDate: date,
+        isAutoCategorized: !!aiSuggestion && categoryId === String(aiSuggestion.categoryId),
       })
       toast({ title: 'Đã thêm giao dịch chung' })
       setOpen(false)
       setAmount('')
       setDescription('')
+      setAiSuggestion(null)
       await load()
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Thêm thất bại'
@@ -261,8 +304,23 @@ export function GroupTransactionsTab({ groupId, isAdmin, currentUserId }: Props)
                 />
               </div>
               <div className="space-y-2">
-                <Label>Danh mục</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
+                <div className="flex items-center justify-between">
+                  <Label>Danh mục</Label>
+                  {isLoadingAI ? (
+                    <Badge variant="secondary" className="gap-1 text-muted-foreground bg-muted">
+                      🤖 Đang phân loại...
+                    </Badge>
+                  ) : aiSuggestion ? (
+                    <Badge variant="secondary" className="gap-1 text-indigo-600 bg-indigo-50 border-indigo-200">
+                      🤖 AI gợi ý: <strong>{aiSuggestion.categoryName}</strong>
+                      {aiSuggestion.source === 'CACHE' && <span className="text-[10px] ml-1 opacity-70">(cached)</span>}
+                    </Badge>
+                  ) : null}
+                </div>
+                <Select value={categoryId} onValueChange={(v) => {
+                  setCategoryId(v)
+                  setAiSuggestion(null)
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Tuỳ chọn" />
                   </SelectTrigger>
@@ -313,9 +371,16 @@ export function GroupTransactionsTab({ groupId, isAdmin, currentUserId }: Props)
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-medium truncate">
-                  {tx.description || tx.categoryName || 'Giao dịch'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium truncate">
+                    {tx.description || tx.categoryName || 'Giao dịch'}
+                  </p>
+                  {tx.isAutoCategorized && (
+                    <Badge variant="secondary" className="gap-1 text-xs px-1.5 h-5 bg-indigo-50 text-indigo-600 border-indigo-200">
+                      🤖 AI
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {tx.accountName} · bởi {tx.createdByName} · {formatDate(tx.transactionDate)}
                 </p>

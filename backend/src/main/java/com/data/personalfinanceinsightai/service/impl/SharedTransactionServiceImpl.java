@@ -2,6 +2,7 @@ package com.data.personalfinanceinsightai.service.impl;
 
 import com.data.personalfinanceinsightai.dto.request.transaction.TransactionCreateRequest;
 import com.data.personalfinanceinsightai.dto.response.PagedResponse;
+import com.data.personalfinanceinsightai.dto.response.transaction.CategorizationResult;
 import com.data.personalfinanceinsightai.dto.response.transaction.SharedTransactionResponse;
 import com.data.personalfinanceinsightai.entity.Account;
 import com.data.personalfinanceinsightai.entity.Category;
@@ -18,6 +19,7 @@ import com.data.personalfinanceinsightai.repository.AccountRepository;
 import com.data.personalfinanceinsightai.repository.CategoryRepository;
 import com.data.personalfinanceinsightai.repository.TransactionRepository;
 import com.data.personalfinanceinsightai.repository.UserRepository;
+import com.data.personalfinanceinsightai.service.CategorizationService;
 import com.data.personalfinanceinsightai.service.GroupAuthorizationService;
 import com.data.personalfinanceinsightai.service.SharedTransactionService;
 import java.math.BigDecimal;
@@ -28,6 +30,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SharedTransactionServiceImpl implements SharedTransactionService {
 
     private static final ZoneId APP_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -46,6 +50,7 @@ public class SharedTransactionServiceImpl implements SharedTransactionService {
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final GroupAuthorizationService groupAuthorizationService;
+    private final CategorizationService categorizationService;
 
     @Override
     @Transactional
@@ -66,10 +71,29 @@ public class SharedTransactionServiceImpl implements SharedTransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tài khoản không tồn tại"));
         validateSharedAccount(account, groupId);
 
+        Long finalCategoryId = request.getCategoryId();
+        boolean autoCategorized = Boolean.TRUE.equals(request.getIsAutoCategorized());
+
+        // Auto-categorize nếu không có categoryId (T13 - Sprint 6)
+        if (finalCategoryId == null && request.getDescription() != null) {
+            try {
+                CategorizationResult result = categorizationService
+                        .categorize(request.getDescription(), user.getId());
+                if (result.isSuccessful()) {
+                    finalCategoryId = result.getCategoryId();
+                    autoCategorized = true;
+                }
+            } catch (Exception e) {
+                // AI lỗi -> shared transaction vẫn tạo được, không crash
+                log.warn("Auto-categorize failed for shared transaction, creating without category: {}",
+                        e.getMessage());
+            }
+        }
+
         Category category = null;
-        if (request.getCategoryId() != null) {
+        if (finalCategoryId != null) {
             category = categoryRepository
-                    .findVisibleByIdAndUserId(request.getCategoryId(), user.getId())
+                    .findVisibleByIdAndUserId(finalCategoryId, user.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
             validateCategoryMatchesTransactionType(category, request.getType());
         }
@@ -84,7 +108,7 @@ public class SharedTransactionServiceImpl implements SharedTransactionService {
                 .type(request.getType())
                 .description(trimToNull(request.getDescription()))
                 .transactionDate(request.getTransactionDate())
-                .autoCategorized(false)
+                .autoCategorized(autoCategorized)
                 .flaggedAnomaly(false)
                 .note(trimToNull(request.getNote()))
                 .deletedAt(null)

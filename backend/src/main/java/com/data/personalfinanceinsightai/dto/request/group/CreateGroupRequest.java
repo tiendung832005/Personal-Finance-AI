@@ -15,3 +15,4 @@ public class CreateGroupRequest {
     @Size(max = 500)
     private String description;
 }
+    

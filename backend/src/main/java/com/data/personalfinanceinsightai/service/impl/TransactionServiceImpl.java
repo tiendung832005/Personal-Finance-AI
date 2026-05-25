@@ -15,6 +15,8 @@ import com.data.personalfinanceinsightai.repository.AccountRepository;
 import com.data.personalfinanceinsightai.repository.CategoryRepository;
 import com.data.personalfinanceinsightai.repository.TransactionRepository;
 import com.data.personalfinanceinsightai.repository.UserRepository;
+import com.data.personalfinanceinsightai.service.CategorizationCacheService;
+import com.data.personalfinanceinsightai.service.CategorizationService;
 import com.data.personalfinanceinsightai.service.TransactionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,11 +26,13 @@ import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TransactionServiceImpl implements TransactionService {
 
     private static final ZoneId APP_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -37,6 +41,8 @@ public class TransactionServiceImpl implements TransactionService {
     private final UserRepository userRepository;
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
+    private final CategorizationService categorizationService;
+    private final CategorizationCacheService categorizationCacheService;
 
     @Override
     @Transactional
@@ -55,10 +61,28 @@ public class TransactionServiceImpl implements TransactionService {
 
         validateFamilyScope(user, account, request.getFamilyId());
 
+        Long finalCategoryId = request.getCategoryId();
+        boolean autoCategorized = Boolean.TRUE.equals(request.getIsAutoCategorized());
+
+        // Auto-categorize nếu không có categoryId
+        if (finalCategoryId == null && request.getDescription() != null) {
+            try {
+                com.data.personalfinanceinsightai.dto.response.transaction.CategorizationResult result = 
+                        categorizationService.categorize(request.getDescription(), user.getId());
+                if (result.isSuccessful()) {
+                    finalCategoryId = result.getCategoryId();
+                    autoCategorized = true;
+                }
+            } catch (Exception e) {
+                // AI lỗi -> transaction vẫn tạo được, không crash
+                log.warn("Auto-categorize failed, creating transaction without category: {}", e.getMessage());
+            }
+        }
+
         Category category = null;
-        if (request.getCategoryId() != null) {
+        if (finalCategoryId != null) {
             category = categoryRepository
-                    .findVisibleByIdAndUserId(request.getCategoryId(), user.getId())
+                    .findVisibleByIdAndUserId(finalCategoryId, user.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
             validateCategoryMatchesTransactionType(category, request.getType());
         }
@@ -70,13 +94,13 @@ public class TransactionServiceImpl implements TransactionService {
                 .user(user)
                 .account(account)
                 .category(category)
-                .familyId(null)
-                .scope(TransactionScope.PERSONAL)
+                .familyId(request.getFamilyId())
+                .scope(request.getFamilyId() == null ? TransactionScope.PERSONAL : TransactionScope.SHARED)
                 .amount(request.getAmount())
                 .type(request.getType())
                 .description(trimToNull(request.getDescription()))
                 .transactionDate(request.getTransactionDate())
-                .autoCategorized(false)
+                .autoCategorized(autoCategorized)
                 .flaggedAnomaly(false)
                 .note(trimToNull(request.getNote()))
                 .deletedAt(null)
@@ -144,11 +168,29 @@ public class TransactionServiceImpl implements TransactionService {
             validateTransactionDate(request.getTransactionDate(), today);
         }
         if (request.getCategoryId() != null) {
-            Category category = categoryRepository
+            Category newCategory = categoryRepository
                     .findVisibleByIdAndUserId(request.getCategoryId(), user.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
-            validateCategoryMatchesTransactionType(category, transaction.getType());
-            transaction.setCategory(category);
+            validateCategoryMatchesTransactionType(newCategory, transaction.getType());
+
+            // T15: User override → update cache
+            // Nếu user đổi category của giao dịch đã auto-categorize → cache học theo
+            Long oldCategoryId = transaction.getCategory() != null
+                    ? transaction.getCategory().getId() : null;
+            if (Boolean.TRUE.equals(transaction.getAutoCategorized())
+                    && !request.getCategoryId().equals(oldCategoryId)) {
+                // Cập nhật cache → lần sau AI sẽ trả đúng luôn
+                if (transaction.getDescription() != null) {
+                    categorizationCacheService.cacheResult(
+                            transaction.getDescription(), newCategory);
+                    log.info("Cache updated from user override: '{}' → category '{}'",
+                            transaction.getDescription(), newCategory.getName());
+                }
+                // Đánh dấu lại là manual (không còn auto)
+                transaction.setAutoCategorized(false);
+            }
+
+            transaction.setCategory(newCategory);
         }
 
         if (request.getAmount() != null
@@ -253,5 +295,17 @@ public class TransactionServiceImpl implements TransactionService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    @Override
+    public Long getUserIdByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .map(User::getId)
+                .orElse(null);
+    }
+
+    @Override
+    public com.data.personalfinanceinsightai.dto.response.transaction.CategorizationResult categorizeTransaction(String description, Long userId) {
+        return categorizationService.categorize(description, userId);
     }
 }

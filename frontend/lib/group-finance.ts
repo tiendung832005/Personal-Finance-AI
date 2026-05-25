@@ -62,6 +62,7 @@ export type CreateSharedTransactionRequest = {
   description?: string
   transactionDate: string
   note?: string
+  isAutoCategorized?: boolean
 }
 
 export type FamilySummaryResponse = {

@@ -91,6 +91,7 @@ type Transaction = {
 export default function TransactionsPage() {
   const { toast } = useToast()
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<Transaction | null>(null)
   const [filterType, setFilterType] = useState<string>('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -107,6 +108,71 @@ export default function TransactionsPage() {
   const [accountId, setAccountId] = useState<string>('') // string for Select
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [note, setNote] = useState('')
+  const [aiSuggestion, setAiSuggestion] = useState<any>(null)
+  const [isLoadingAI, setIsLoadingAI] = useState(false)
+
+  // T19: Frontend - AI Suggestion with Debounce
+  useEffect(() => {
+    // Clear stale suggestion whenever description changes
+    setAiSuggestion(null)
+
+    if (!description || description.trim().length < 2) {
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsLoadingAI(true)
+      try {
+        const res = await apiFetch<any>('/api/transactions/categorize', {
+          method: 'POST',
+          body: JSON.stringify({ description }),
+        })
+        const suggestion = res.data
+
+        if (suggestion?.successful) {
+          // Use functional update to check if we can safely overwrite the current category
+          setAiSuggestion(prevAi => {
+            setCategoryId(currentCatId => {
+              // Overwrite ONLY if category is empty OR it was set by the PREVIOUS AI suggestion
+              const isAiDriven = prevAi && currentCatId === String(prevAi.categoryId);
+              if (!currentCatId || isAiDriven) {
+                return String(suggestion.categoryId);
+              }
+              return currentCatId;
+            });
+            return suggestion;
+          });
+        }
+      } catch {
+        // fail silently
+      } finally {
+        setIsLoadingAI(false)
+      }
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [description])
+
+  useEffect(() => {
+    if (editTarget) {
+      setAmount(String(editTarget.amount))
+      setTxType(editTarget.type)
+      setDescription(editTarget.description || '')
+      setCategoryId(editTarget.categoryId ? String(editTarget.categoryId) : '')
+      setAccountId(String(editTarget.accountId))
+      setDate(editTarget.transactionDate)
+      setNote(editTarget.note || '')
+      setAiSuggestion(null)
+    } else {
+      setAmount('')
+      setDescription('')
+      setCategoryId('')
+      setTxType('EXPENSE')
+      setDate(new Date().toISOString().split('T')[0])
+      setNote('')
+      setAiSuggestion(null)
+    }
+  }, [editTarget])
 
   const loadAll = async () => {
     setLoading(true)
@@ -162,37 +228,43 @@ export default function TransactionsPage() {
     .filter(t => t.type === 'EXPENSE')
     .reduce((sum, t) => sum + t.amount, 0)
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!accountId) {
       toast({ title: 'Thiếu tài khoản', description: 'Vui lòng chọn tài khoản.', variant: 'destructive' })
       return
     }
+    const payload = {
+      accountId: Number(accountId),
+      categoryId: categoryId ? Number(categoryId) : null,
+      amount: Number(amount),
+      type: txType,
+      description,
+      transactionDate: date,
+      note: note || null,
+      isAutoCategorized: !!aiSuggestion && categoryId === String(aiSuggestion.categoryId),
+    }
+
     try {
-      await apiFetch<Transaction>('/api/transactions', {
-        method: 'POST',
-        body: JSON.stringify({
-          accountId: Number(accountId),
-          categoryId: categoryId ? Number(categoryId) : null,
-          amount: Number(amount),
-          type: txType,
-          description,
-          transactionDate: date,
-          note: note || null,
-        }),
-      })
+      if (editTarget) {
+        await apiFetch<Transaction>(`/api/transactions/${editTarget.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        })
+        toast({ title: 'Đã cập nhật giao dịch' })
+      } else {
+        await apiFetch<Transaction>('/api/transactions', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        toast({ title: 'Đã tạo giao dịch' })
+      }
       setIsAddOpen(false)
-      setAmount('')
-      setDescription('')
-      setCategoryId('')
-      setTxType('EXPENSE')
-      setDate(new Date().toISOString().split('T')[0])
-      setNote('')
+      setEditTarget(null)
       await loadAll()
-      toast({ title: 'Đã tạo giao dịch' })
     } catch (err: any) {
       toast({
-        title: 'Tạo giao dịch thất bại',
+        title: editTarget ? 'Cập nhật thất bại' : 'Tạo giao dịch thất bại',
         description: err instanceof ApiError ? err.message : 'Vui lòng thử lại',
         variant: 'destructive',
       })
@@ -258,18 +330,20 @@ export default function TransactionsPage() {
             </SelectContent>
           </Select>
 
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <Dialog open={isAddOpen || !!editTarget} onOpenChange={(o) => {
+             if (!o) { setIsAddOpen(false); setEditTarget(null); }
+          }}>
             <DialogTrigger asChild>
-              <Button className="ml-auto gap-2">
+              <Button className="ml-auto gap-2" onClick={() => setIsAddOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Thêm giao dịch
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Thêm giao dịch mới</DialogTitle>
+                <DialogTitle>{editTarget ? 'Cập nhật giao dịch' : 'Thêm giao dịch mới'}</DialogTitle>
               </DialogHeader>
-              <form className="space-y-4 mt-4" onSubmit={handleCreate}>
+              <form className="space-y-4 mt-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <Label htmlFor="amount">Số tiền</Label>
                   <Input
@@ -314,15 +388,29 @@ export default function TransactionsPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="category">Danh mục</Label>
-                    <Badge variant="secondary" className="gap-1">
-                      <Sparkles className="h-3 w-3" />
-                      AI gợi ý
-                    </Badge>
+                    {isLoadingAI ? (
+                      <Badge variant="secondary" className="gap-1 text-muted-foreground bg-muted">
+                        🤖 Đang phân loại...
+                      </Badge>
+                    ) : aiSuggestion ? (
+                      <Badge variant="secondary" className="gap-1 text-indigo-600 bg-indigo-50 border-indigo-200">
+                        🤖 AI gợi ý: <strong>{aiSuggestion.categoryName}</strong>
+                        {aiSuggestion.source === 'CACHE' && <span className="text-[10px] ml-1 opacity-70">(cached)</span>}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        AI hỗ trợ
+                      </Badge>
+                    )}
                   </div>
-                  <Select value={categoryId} onValueChange={setCategoryId}>
+                  <Select value={categoryId} onValueChange={(v) => {
+                    setCategoryId(v)
+                    setAiSuggestion(null)
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Chọn danh mục" />
                     </SelectTrigger>
@@ -334,6 +422,13 @@ export default function TransactionsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {/* T21: User override hint */}
+                  {editTarget && editTarget.isAutoCategorized && categoryId !== String(editTarget.categoryId || '') && (
+                    <p className="text-xs text-amber-600 mt-1.5 flex items-start gap-1">
+                      <span>💡</span>
+                      <span className="leading-tight">Thay đổi này sẽ giúp AI phân loại chính xác hơn cho lần sau.</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -379,7 +474,10 @@ export default function TransactionsPage() {
                     type="button"
                     variant="outline"
                     className="flex-1"
-                    onClick={() => setIsAddOpen(false)}
+                    onClick={() => {
+                      setIsAddOpen(false)
+                      setEditTarget(null)
+                    }}
                   >
                     Hủy
                   </Button>
@@ -420,7 +518,7 @@ export default function TransactionsPage() {
                 return (
                   <div
                     key={transaction.id}
-                    className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-secondary/50"
+                    className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-secondary/50"
                   >
                     <div
                       className="flex h-11 w-11 items-center justify-center rounded-xl"
@@ -437,9 +535,8 @@ export default function TransactionsPage() {
                           {transaction.description || '(Không có mô tả)'}
                         </p>
                         {transaction.isAutoCategorized && (
-                          <Badge variant="secondary" className="gap-1 text-xs">
-                            <Sparkles className="h-3 w-3" />
-                            AI
+                          <Badge variant="secondary" className="gap-1 text-xs px-1.5 h-5 bg-indigo-50 text-indigo-600 border-indigo-200" title="Danh mục được AI tự động phân loại">
+                            🤖 AI
                           </Badge>
                         )}
                       </div>
@@ -466,6 +563,14 @@ export default function TransactionsPage() {
                           {formatDate(transaction.transactionDate)}
                         </p>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditTarget(transaction)}
+                        className="text-muted-foreground hover:text-foreground md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                      >
+                        Sửa
+                      </Button>
                     </div>
                   </div>
                 )

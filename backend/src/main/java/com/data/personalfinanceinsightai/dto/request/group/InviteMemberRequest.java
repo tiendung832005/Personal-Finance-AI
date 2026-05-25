@@ -11,9 +11,4 @@ public class InviteMemberRequest {
     @NotBlank
     @Email
     private String email;
-
-
-
-
-
 }

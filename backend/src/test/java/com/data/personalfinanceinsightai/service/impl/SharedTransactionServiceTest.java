@@ -26,6 +26,7 @@ import com.data.personalfinanceinsightai.repository.AccountRepository;
 import com.data.personalfinanceinsightai.repository.CategoryRepository;
 import com.data.personalfinanceinsightai.repository.TransactionRepository;
 import com.data.personalfinanceinsightai.repository.UserRepository;
+import com.data.personalfinanceinsightai.service.CategorizationService;
 import com.data.personalfinanceinsightai.service.GroupAuthorizationService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -63,6 +64,9 @@ class SharedTransactionServiceTest {
     @Mock
     private GroupAuthorizationService groupAuthorizationService;
 
+    @Mock
+    private CategorizationService categorizationService;
+
     private SharedTransactionServiceImpl sharedTransactionService;
 
     @BeforeEach
@@ -72,7 +76,8 @@ class SharedTransactionServiceTest {
                 accountRepository,
                 categoryRepository,
                 transactionRepository,
-                groupAuthorizationService);
+                groupAuthorizationService,
+                categorizationService);
     }
 
     @Test

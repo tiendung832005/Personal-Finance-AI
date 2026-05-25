@@ -91,4 +91,31 @@ public class TransactionController {
         transactionService.softDelete(principal.getUsername(), id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/categorize")
+    public ResponseEntity<ApiResponse<com.data.personalfinanceinsightai.dto.response.transaction.CategorizationResultDTO>> categorize(
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody com.data.personalfinanceinsightai.dto.request.transaction.CategorizeRequest request) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Unauthorized"));
+        }
+        
+        // Cần User ID để rate limit và log, service hỗ trợ truyền null nếu không có,
+        // Nhưng ở Controller thì UserDetails chắc chắn tồn tại. Lấy id qua service (sẽ bổ sung bên dưới)
+        Long userId = transactionService.getUserIdByEmail(principal.getUsername());
+        
+        com.data.personalfinanceinsightai.dto.response.transaction.CategorizationResult result = 
+                transactionService.categorizeTransaction(request.getDescription(), userId);
+                
+        return ResponseEntity.ok(ApiResponse.success(
+                com.data.personalfinanceinsightai.dto.response.transaction.CategorizationResultDTO.builder()
+                        .categoryId(result.getCategoryId())
+                        .categoryName(result.getSuggestedCategoryName())
+                        .source(result.getSource() != null ? result.getSource().name() : null)
+                        .isSuccessful(result.isSuccessful())
+                        .message(result.getMessage())
+                        .build()
+        ));
+    }
 }

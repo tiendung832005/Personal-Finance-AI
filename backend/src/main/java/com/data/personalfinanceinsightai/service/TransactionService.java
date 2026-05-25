@@ -17,4 +17,8 @@ public interface TransactionService {
     TransactionResponse update(String email, Long id, TransactionUpdateRequest request);
 
     void softDelete(String email, Long id);
+
+    Long getUserIdByEmail(String email);
+
+    com.data.personalfinanceinsightai.dto.response.transaction.CategorizationResult categorizeTransaction(String description, Long userId);
 }
