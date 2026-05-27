@@ -46,7 +46,7 @@ public class HealthScoreService {
         Optional<FinancialHealthScore> existing = healthScoreRepository
                 .findByUser_IdAndMonth(userId, monthDate);
         
-        if (existing.isPresent() && existing.get().getAiAnalysis() != null) {
+        if (existing.isPresent() && existing.get().getAiAnalysis() != null && existing.get().getSavingsTips() != null) {
             return mapToResponse(existing.get(), monthStr);
         }
 
@@ -152,7 +152,7 @@ public class HealthScoreService {
                 Yêu cầu: Viết 2 câu ngắn gọn giải thích tại sao tôi nhận được mức điểm này. Thân thiện và khách quan.
                 """, overall, savings, budget, trend, data.getTotalIncome(), data.getTotalExpense(), data.getSavingsRate());
         
-        return geminiClient.chat("Bạn là chuyên gia phân tích điểm tài chính.", prompt, 300);
+        return geminiClient.chat("Bạn là chuyên gia phân tích điểm tài chính.", prompt, 512);
     }
 
     private String generateAiSavingsTips(InsightData data) {
@@ -161,15 +161,20 @@ public class HealthScoreService {
                 .collect(Collectors.joining(", "));
 
         String prompt = String.format("""
-                Dựa trên dữ liệu chi tiêu này, hãy đưa ra 4 gợi ý tiết kiệm NGẮN GỌN và THỰC TẾ.
-                - Top chi tiêu: %s
-                - Các mục vượt ngân sách: %d/%d
+                Dựa trên dữ liệu chi tiêu thực tế của tôi, hãy đưa ra 4 gợi ý tiết kiệm NGẮN GỌN, THỰC TẾ và ĐA DẠNG.
+                - Danh mục chi tiêu nhiều nhất: %s
+                - Số danh mục vượt ngân sách dự kiến: %d trên tổng số %d danh mục có đặt hạn mức.
                 
-                Định dạng kết quả trả về BẮT BUỘC theo cấu trúc JSON mảng các object:
-                [{"title": "Tiêu đề", "description": "Mô tả ngắn"}]
+                Yêu cầu:
+                1. Gợi ý phải tập trung vào các danh mục tôi đang chi tiêu nhiều.
+                2. Lời khuyên cụ thể, có thể ước tính số tiền tiết kiệm được nếu khả thi.
+                3. Trình bày bằng tiếng Việt, giọng điệu chuyên gia tài chính thân thiện.
+                
+                Định dạng kết quả trả về BẮT BUỘC là một JSON array gồm các object có cấu trúc:
+                [{"title": "Tiêu đề ngắn gọn", "description": "Mô tả chi tiết lời khuyên (1-2 câu)"}]
                 """, topExpensesStr, data.getBudgetExceededCount(), data.getTotalBudgetCount());
 
-        return cleanAiResponse(geminiClient.chat("Bạn là chuyên gia tư vấn tiết kiệm. Trả về JSON.", prompt, 600));
+        return cleanAiResponse(geminiClient.chat("Bạn là chuyên gia tư vấn tiết kiệm. Trả về JSON.", prompt, 1024));
     }
 
     private String cleanAiResponse(String raw) {

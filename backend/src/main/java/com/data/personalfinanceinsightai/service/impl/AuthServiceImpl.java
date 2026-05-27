@@ -43,10 +43,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Slf4j
 public class AuthServiceImpl implements AuthService {
 
-    private static final ZoneId APP_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
-    private static final int OTP_EXPIRE_MINUTES = 10;
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
     private final UserRepository userRepository;
     private final OtpVerificationRepository otpVerificationRepository;
     private final PasswordEncoder passwordEncoder;
@@ -54,6 +50,9 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JavaMailSender mailSender;
     private final WebClient.Builder webClientBuilder;
+
+    private static final int OTP_EXPIRE_MINUTES = 10;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Value("${app.google.client-id:}")
     private String googleClientId;
@@ -174,7 +173,7 @@ public class AuthServiceImpl implements AuthService {
                 .purpose(purpose)
                 .otpCode(otp)
                 .verified(false)
-                .expiresAt(LocalDateTime.now(APP_ZONE).plusMinutes(OTP_EXPIRE_MINUTES))
+                .expiresAt(LocalDateTime.now(com.data.personalfinanceinsightai.config.AppTimeConfig.APP_ZONE).plusMinutes(OTP_EXPIRE_MINUTES))
                 .build();
         otpVerificationRepository.save(verification);
         sendOtpMail(email, otp, purpose);
@@ -186,7 +185,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("OTP is invalid or expired"));
 
         if (Boolean.TRUE.equals(verification.getVerified())
-                || verification.getExpiresAt().isBefore(LocalDateTime.now(APP_ZONE))
+                || verification.getExpiresAt().isBefore(LocalDateTime.now(com.data.personalfinanceinsightai.config.AppTimeConfig.APP_ZONE))
                 || !verification.getOtpCode().equals(otp)) {
             throw new IllegalArgumentException("OTP is invalid or expired");
         }

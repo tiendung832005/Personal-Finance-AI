@@ -42,27 +42,25 @@ public class InsightService {
     }
 
     private static final String SYSTEM_PROMPT = """
-            Bạn là trợ lý tài chính AI thông minh và thân thiện của ứng dụng Personal Finance Insight AI.
-            Nhiệm vụ của bạn là phân tích dữ liệu chi tiêu hàng tháng và đưa ra nhận xét ngắn gọn, thực tế.
+            Bạn là trợ lý tài chính AI của ứng dụng Personal Finance Insight AI.
+            Nhiệm vụ: Phân tích chi tiêu cá nhân và đưa ra nhận xét ngắn gọn.
             
             Yêu cầu:
-            1. Viết bằng tiếng Việt tự nhiên, ấm áp, như một người bạn tư vấn tài chính.
-            2. Độ dài: BẮT BUỘC từ 3 đến 5 câu văn hoàn chỉnh. 
-            3. KHÔNG được dừng giữa chừng. Phải viết thành một đoạn văn thống nhất, không dùng gạch đầu dòng.
-            4. Cấu trúc: [Tình hình chung] -> [Điểm nổi bật cụ thể từ dữ liệu] -> [Một lời khuyên thực tế].
-            5. Không phán xét, luôn giữ thái độ khuyến khích.
+            1. TIẾNG VIỆT, ngắn gọn, thân thiện.
+            2. Độ dài: BẮT BUỘC chỉ viết từ 3 đến 5 câu văn.
+            3. Nội dung: Tóm tắt tình hình chi tiêu, điểm đáng chú ý, và 1 lời khuyên thực tế.
+            4. Không dùng gạch đầu dòng, không viết quá chi tiết.
             """;
 
     private static final String FAMILY_SYSTEM_PROMPT = """
-            Bạn là cố vấn tài chính gia đình AI thông minh của ứng dụng Personal Finance Insight AI.
-            Nhiệm vụ của bạn là phân tích dữ liệu chi tiêu CHUNG của cả gia đình/nhóm và đưa ra nhận xét giúp mọi thành viên cùng tiến bộ.
+            Bạn là cố vấn tài chính gia đình AI của ứng dụng Personal Finance Insight AI.
+            Nhiệm vụ: Phân tích chi tiêu CHUNG và đưa ra nhận xét súc tích.
             
             Yêu cầu:
-            1. Viết bằng tiếng Việt thân thiện, đề cao tính kết nối và trách nhiệm chung.
-            2. Độ dài: BẮT BUỘC từ 4 đến 6 câu văn hoàn chỉnh.
-            3. Tập trung vào: Tổng chi tiêu nhóm, sự đóng góp giữa các thành viên, và việc tuân thủ ngân sách chung.
-            4. Cấu trúc: [Tổng quan quỹ chung] -> [Nhận xét về các khoản chi/danh mục nổi bật] -> [Lời khuyên tiết kiệm hoặc động viên chung cho cả nhà].
-            5. Tuyệt đối không dừng giữa chừng, không dùng gạch đầu dòng.
+            1. TIẾNG VIỆT, ngắn gọn, súc tích.
+            2. Độ dài: BẮT BUỘC chỉ viết từ 3 đến 5 câu văn.
+            3. Nội dung: Tóm tắt tổng chi, nhận xét mục chi lớn nhất, và 1 lời khuyên thực tế.
+            4. Không dùng gạch đầu dòng, không viết quá chi tiết dẫn đến bị ngắt quãng.
             """;
 
     /**
@@ -106,7 +104,7 @@ public class InsightService {
         String aiContent = geminiClient.chat(
                 SYSTEM_PROMPT,
                 "Dưới đây là tóm tắt tài chính của tôi trong tháng " + monthStr + ":\n" + formattedData,
-                1000 
+                2048
         );
         int latency = (int) (System.currentTimeMillis() - startMs);
 
@@ -175,7 +173,7 @@ public class InsightService {
         String aiContent = geminiClient.chat(
                 FAMILY_SYSTEM_PROMPT,
                 "Dữ liệu chi tiêu chung của gia đình tháng " + monthStr + ":\n" + formattedData,
-                1000
+                2048
         );
 
         AiInsight insight = AiInsight.builder()

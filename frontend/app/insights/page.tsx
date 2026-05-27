@@ -137,12 +137,17 @@ export default function InsightsPage() {
     if (!healthScore?.savingsTips) return defaultTips;
     try {
       const parsed = JSON.parse(healthScore.savingsTips);
-      return parsed.map((item: any) => ({
-        ...item,
-        icon: item.title.toLowerCase().includes('mua') ? ShoppingBag : 
-              item.title.toLowerCase().includes('di chuyển') ? Car : 
-              item.title.toLowerCase().includes('ăn') || item.title.toLowerCase().includes('uống') ? Coffee : PiggyBank
-      }));
+      return parsed.map((item: any) => {
+        const title = item.title.toLowerCase();
+        let icon = PiggyBank;
+        if (title.includes('cà phê') || title.includes('ăn') || title.includes('uống')) icon = Coffee;
+        else if (title.includes('di chuyển') || title.includes('xe') || title.includes('bus')) icon = Car;
+        else if (title.includes('mua sắm') || title.includes('shopping') || title.includes('quần áo')) icon = ShoppingBag;
+        else if (title.includes('tiết kiệm') || title.includes('tích lũy')) icon = PiggyBank;
+        else if (title.includes('điện') || title.includes('nước') || title.includes('tiện ích')) icon = Lightbulb;
+        
+        return { ...item, icon, isAi: true };
+      });
     } catch (e) {
       return defaultTips;
     }
@@ -291,10 +296,21 @@ export default function InsightsPage() {
         </div>
 
         {/* Savings Tips (AI Generated) */}
-        <div className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Lightbulb className="h-5 w-5 text-warning" />
-            <h3 className="font-semibold text-foreground">Gợi ý tiết kiệm cá nhân hóa</h3>
+        <div className="mt-6 rounded-xl border border-border bg-card p-5 shadow-sm overflow-hidden relative">
+          {/* Subtle background glow */}
+          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-warning/5 blur-3xl" />
+          
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-warning" />
+              <h3 className="font-semibold text-foreground">Gợi ý tiết kiệm cá nhân hóa</h3>
+            </div>
+            {displayTips[0]?.isAi && (
+              <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary">
+                <Sparkles className="h-3 w-3" />
+                AI Generated
+              </div>
+            )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {displayTips.map((tip: any, index: number) => {

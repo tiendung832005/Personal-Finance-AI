@@ -10,3 +10,12 @@ spring.flyway.baseline-version=0
 app.jwt.secret=your-jwt-secret-key-here-at-least-32-bytes-long
 app.jwt.expiration=86400000
 app.frontend.url=http://localhost:5173
+
+# Google Auth
+app.google.client-id=49189547110-bm5sudeobvf6diik6fpn9cf81u3n97aq.apps.googleusercontent.com
+
+# Mail Config
+app.mail.from=tiendungx832005@gmail.com
+spring.mail.username=tiendungx832005@gmail.com
+spring.mail.password=zjuewzfrdgvapfwf
+app.mail.fallback-log-otp=false

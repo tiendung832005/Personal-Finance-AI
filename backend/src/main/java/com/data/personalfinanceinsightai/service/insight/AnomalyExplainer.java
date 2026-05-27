@@ -50,7 +50,7 @@ public class AnomalyExplainer {
 
         log.debug("Requesting AI explanation for anomaly of txn: {}", description);
         
-        String explanation = geminiClient.chat(SYSTEM_PROMPT, userMessage, 300);
+        String explanation = geminiClient.chat(SYSTEM_PROMPT, userMessage, 512);
 
         if (explanation != null && !explanation.isBlank()) {
             anomaly.setExplanation(explanation);
