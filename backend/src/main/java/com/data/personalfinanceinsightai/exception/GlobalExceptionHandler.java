@@ -23,8 +23,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnreadableMessage(HttpMessageNotReadableException ex) {
-        return ResponseEntity.badRequest().body(ApiResponse.error("Invalid request body"));
+        log.error("JSON parse error: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.error("Invalid request body: " + ex.getMostSpecificCause().getMessage()));
     }
+
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(MethodArgumentNotValidException ex) {

@@ -3,7 +3,9 @@ package com.data.personalfinanceinsightai.service;
 import com.data.personalfinanceinsightai.entity.AiCallLog;
 import com.data.personalfinanceinsightai.entity.User;
 import com.data.personalfinanceinsightai.repository.AiCallLogRepository;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -36,4 +38,11 @@ public class AiCallLogService {
                 .latencyMs(0)
                 .build());
     }
+
+    public long getDailyCallCount(User user, String feature) {
+        LocalDateTime startOfToday = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
+        return logRepository.countByUserAndFeatureAndCreatedAtAfter(user, feature, startOfToday);
+    }
 }
+
+

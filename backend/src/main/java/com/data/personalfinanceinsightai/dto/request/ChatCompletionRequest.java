@@ -1,5 +1,7 @@
 package com.data.personalfinanceinsightai.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,18 +13,16 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ChatCompletionRequest {
     private String model;
     private List<ChatMessage> messages;
-    private int max_tokens;
-    private double temperature;
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class ChatMessage {
-        private String role;
-        private String content;
-    }
+    
+    @JsonProperty("max_tokens")
+    private Integer maxTokens;
+    
+    private Double temperature;
 }
+
+
 
