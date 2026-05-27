@@ -3,6 +3,7 @@ import { Be_Vietnam_Pro } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { ChatbotWidget } from "@/components/finance-chatbot/chatbot-widget";
 import "./globals.css";
 
 const beVietnamPro = Be_Vietnam_Pro({
@@ -52,6 +53,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           {children}
           <Toaster />
+          <ChatbotWidget />
         </ThemeProvider>
         {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
