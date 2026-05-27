@@ -18,6 +18,7 @@ import com.data.personalfinanceinsightai.repository.UserRepository;
 import com.data.personalfinanceinsightai.service.CategorizationCacheService;
 import com.data.personalfinanceinsightai.service.CategorizationService;
 import com.data.personalfinanceinsightai.service.TransactionService;
+import com.data.personalfinanceinsightai.service.insight.AnomalyDetector;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -43,6 +44,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final CategoryRepository categoryRepository;
     private final CategorizationService categorizationService;
     private final CategorizationCacheService categorizationCacheService;
+    private final AnomalyDetector anomalyDetector;
 
     @Override
     @Transactional
@@ -106,8 +108,21 @@ public class TransactionServiceImpl implements TransactionService {
                 .deletedAt(null)
                 .build();
 
+
         Transaction saved = transactionRepository.save(transaction);
+        
+        // Sprint 7: T10 - Trigger Anomaly Detection (Async)
+        triggerAnomalyDetection(saved);
+        
         return TransactionResponse.fromEntity(saved);
+    }
+
+    private void triggerAnomalyDetection(Transaction savedTxn) {
+        try {
+            anomalyDetector.detectForTransaction(savedTxn);
+        } catch (Exception e) {
+            log.warn("Failed to trigger anomaly detection for txnId={}: {}", savedTxn.getId(), e.getMessage());
+        }
     }
 
     @Override

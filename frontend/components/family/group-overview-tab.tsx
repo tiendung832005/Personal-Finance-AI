@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { FamilyAiInsight } from './family-ai-insight'
+import { FamilyAnomalyList } from './family-anomaly-list'
 import { SummaryCard } from '@/components/dashboard/summary-card'
 import { ExpenseChart } from '@/components/dashboard/expense-chart'
 import { TrendChart } from '@/components/dashboard/trend-chart'
@@ -108,6 +110,10 @@ export function GroupOverviewTab({ groupId }: Props) {
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      <FamilyAiInsight groupId={groupId} month={monthKey} />
+
+      <FamilyAnomalyList groupId={groupId} month={monthKey} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard

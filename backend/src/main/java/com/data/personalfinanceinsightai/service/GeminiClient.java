@@ -44,6 +44,13 @@ public class GeminiClient {
      * @return text response từ AI, hoặc null nếu lỗi
      */
     public String chat(String systemPrompt, String userMessage) {
+        return chat(systemPrompt, userMessage, 100);
+    }
+
+    /**
+     * Gửi request tới Gemini API với cấu hình maxTokens tùy chỉnh.
+     */
+    public String chat(String systemPrompt, String userMessage, int maxTokens) {
         if (props.getApiKey() == null || props.getApiKey().isBlank()) {
             log.error("Gemini API key is not configured. Set GEMINI_API_KEY environment variable.");
             return null;
@@ -55,7 +62,6 @@ public class GeminiClient {
             String model = modelName.trim();
             if (model.isEmpty()) continue;
 
-            // Chuyển lại v1beta để hỗ trợ tính năng System Instruction
             String uri = String.format(
                     "/v1beta/models/%s:generateContent?key=%s",
                     model, props.getApiKey()
@@ -73,7 +79,7 @@ public class GeminiClient {
                     ),
                     "generationConfig", Map.of(
                             "temperature", 0.1,
-                            "maxOutputTokens", 50
+                            "maxOutputTokens", maxTokens
                     )
             );
 

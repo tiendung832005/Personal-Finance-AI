@@ -55,6 +55,10 @@ export default function DashboardPage() {
   const { user } = useCurrentUser()
   const userName = user?.fullName?.split(' ').slice(-1)[0] ?? 'bạn'
 
+  // Sprint 7: AI States
+  const [aiInsight, setAiInsight] = useState<any>(null)
+  const [realHealthScore, setRealHealthScore] = useState<number | null>(null)
+
   useEffect(() => {
     const run = async () => {
       setLoading(true)
@@ -68,6 +72,9 @@ export default function DashboardPage() {
         apiFetch<any[]>('/api/transactions', { method: 'GET' }),
         apiFetch<SummaryResponse>(summaryPath, { method: 'GET' }),
         apiFetch<TrendResponse>(trendPath, { method: 'GET' }),
+        // Sprint 7: Fetch AI Data
+        apiFetch<any>(`/api/insights/monthly?month=${monthKey}`, { method: 'GET' }),
+        apiFetch<any>(`/api/health-score?month=${monthKey}`, { method: 'GET' }),
       ])
 
       const errs: string[] = []
@@ -123,6 +130,17 @@ export default function DashboardPage() {
           const e = trendRes.reason
           errs.push(e instanceof ApiError ? e.message : 'Xu hướng (trend)')
         }
+      }
+
+      // Sprint 7 logic
+      const insightRes = settled[4]
+      if (insightRes.status === 'fulfilled' && insightRes.value.data) {
+        setAiInsight(insightRes.value.data)
+      }
+
+      const healthRes = settled[5]
+      if (healthRes.status === 'fulfilled' && healthRes.value.data) {
+        setRealHealthScore(healthRes.value.data.overallScore)
       }
 
       if (errs.length) {
@@ -205,7 +223,7 @@ export default function DashboardPage() {
             icon={Wallet}
             variant="default"
           />
-          <HealthScoreCard score={78} size="sm" />
+          <HealthScoreCard score={loading ? 0 : (realHealthScore ?? 70)} size="sm" />
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -221,15 +239,12 @@ export default function DashboardPage() {
             <h3 className="font-semibold text-foreground">AI Insight</h3>
             <InsightCard
               insight={{
-                id: 'placeholder',
-                type: 'tip',
-                title: 'Gợi ý',
-                description:
-                  summary && num(summary.netBalance) < 0
-                    ? `Tháng này chi nhiều hơn thu ${formatCurrency(Math.abs(num(summary.netBalance)))}. Cân nhắc rà soát các danh mục chi lớn trên biểu đồ.`
-                    : 'Backend chưa có endpoint insight/health-score. Bạn có thể nối khi Sprint 7 xong.',
+                id: aiInsight?.id || 'placeholder',
+                type: 'tip', // Mặc định là tip cho dashboard
+                title: 'Lời khuyên từ AI',
+                description: aiInsight?.content || 'Đang chuẩn bị nhận xét cho tháng này...',
                 icon: 'lightbulb',
-                date: new Date().toISOString().slice(0, 10),
+                date: aiInsight?.createdAt || new Date().toISOString(),
               }}
               featured
             />

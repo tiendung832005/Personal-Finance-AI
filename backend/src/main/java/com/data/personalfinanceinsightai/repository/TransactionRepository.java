@@ -3,6 +3,7 @@ package com.data.personalfinanceinsightai.repository;
 import com.data.personalfinanceinsightai.entity.Transaction;
 import com.data.personalfinanceinsightai.entity.enums.TransactionScope;
 import com.data.personalfinanceinsightai.entity.enums.TransactionType;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -201,4 +202,121 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("groupId") Long groupId,
             @Param("fromInclusive") LocalDate fromInclusive,
             @Param("toInclusive") LocalDate toInclusive);
+
+    // ============================================================
+    // Sprint 7 — InsightDataCollector queries
+    // ============================================================
+
+    /**
+     * Tổng thu hoặc chi của user trong tháng (dạng 'yyyy-MM').
+     * Dùng trong InsightDataCollector để tính totalIncome / totalExpense.
+     */
+    @Query(
+            value = """
+            SELECT COALESCE(SUM(amount), 0)
+            FROM transactions
+            WHERE user_id   = :userId
+              AND type       = :type
+              AND deleted_at IS NULL
+              AND family_id  IS NULL
+              AND scope      = 'PERSONAL'
+              AND DATE_FORMAT(transaction_date, '%Y-%m') = :month
+            """,
+            nativeQuery = true)
+    BigDecimal sumByUserTypeMonth(
+            @Param("userId") Long userId,
+            @Param("type") String type,
+            @Param("month") String month);
+
+    /**
+     * Top N danh mục chi tiêu nhiều nhất của user trong tháng.
+     * Trả về Object[]: [categoryId, categoryName, total]
+     */
+    @Query(
+            value = """
+            SELECT t.category_id, c.name, COALESCE(SUM(t.amount), 0) AS total
+            FROM transactions t
+            JOIN categories c ON c.id = t.category_id
+            WHERE t.user_id   = :userId
+              AND t.type       = 'EXPENSE'
+              AND t.deleted_at IS NULL
+              AND t.family_id  IS NULL
+              AND t.scope      = 'PERSONAL'
+              AND DATE_FORMAT(t.transaction_date, '%Y-%m') = :month
+            GROUP BY t.category_id, c.name
+            ORDER BY total DESC
+            LIMIT :limit
+            """,
+            nativeQuery = true)
+    List<Object[]> getTopExpenseCategories(
+            @Param("userId") Long userId,
+            @Param("month") String month,
+            @Param("limit") int limit);
+
+    /**
+     * Top N danh mục chi tiêu nhiều nhất của nhóm gia đình trong tháng.
+     */
+    @Query(
+            value = """
+            SELECT t.category_id, c.name, COALESCE(SUM(t.amount), 0) AS total
+            FROM transactions t
+            JOIN categories c ON c.id = t.category_id
+            WHERE t.family_id  = :groupId
+              AND t.type       = 'EXPENSE'
+              AND t.deleted_at IS NULL
+              AND t.scope      = 'SHARED'
+              AND DATE_FORMAT(t.transaction_date, '%Y-%m') = :month
+            GROUP BY t.category_id, c.name
+            ORDER BY total DESC
+            LIMIT :limit
+            """,
+            nativeQuery = true)
+    List<Object[]> getTopExpenseCategoriesForGroup(
+            @Param("groupId") Long groupId,
+            @Param("month") String month,
+            @Param("limit") int limit);
+
+    // ============================================================
+    // Sprint 7 — AnomalyDetector queries
+    // ============================================================
+
+    /**
+     * Trung bình amount của category cho user (EXPENSE, không xóa) kể từ fromMonth.
+     * Dùng để phát hiện UNUSUAL_AMOUNT anomaly.
+     */
+    @Query(
+            value = """
+            SELECT AVG(amount)
+            FROM transactions
+            WHERE user_id    = :userId
+              AND category_id = :categoryId
+              AND type        = 'EXPENSE'
+              AND deleted_at  IS NULL
+              AND DATE_FORMAT(transaction_date, '%Y-%m') >= :fromMonth
+            """,
+            nativeQuery = true)
+    BigDecimal avgAmountByUserCategoryAfterMonth(
+            @Param("userId") Long userId,
+            @Param("categoryId") Long categoryId,
+            @Param("fromMonth") String fromMonth);
+
+    /**
+     * Kiểm tra user có từng chi tiêu ở category này kể từ fromMonth không.
+     * Dùng để phát hiện NEW_CATEGORY anomaly.
+     */
+    @Query(
+            value = """
+            SELECT COUNT(*) > 0
+            FROM transactions
+            WHERE user_id    = :userId
+              AND category_id = :categoryId
+              AND type        = 'EXPENSE'
+              AND deleted_at  IS NULL
+              AND DATE_FORMAT(transaction_date, '%Y-%m') >= :fromMonth
+            """,
+            nativeQuery = true)
+    boolean existsByUserCategoryAfterMonth(
+            @Param("userId") Long userId,
+            @Param("categoryId") Long categoryId,
+            @Param("fromMonth") String fromMonth);
 }
