@@ -30,6 +30,7 @@ import { apiFetch, ApiError } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import {
   Plus,
+  Upload,
   Filter,
   Utensils,
   Car,
@@ -131,7 +132,7 @@ export default function TransactionsPage() {
 
         if (suggestion?.successful) {
           // Use functional update to check if we can safely overwrite the current category
-          setAiSuggestion(prevAi => {
+          setAiSuggestion((prevAi: any) => {
             setCategoryId(currentCatId => {
               // Overwrite ONLY if category is empty OR it was set by the PREVIOUS AI suggestion
               const isAiDriven = prevAi && currentCatId === String(prevAi.categoryId);
@@ -329,6 +330,17 @@ export default function TransactionsPage() {
               ))}
             </SelectContent>
           </Select>
+
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              window.location.href = '/transactions/import'
+            }}
+          >
+            <Upload className="h-4 w-4" />
+            Import CSV
+          </Button>
 
           <Dialog open={isAddOpen || !!editTarget} onOpenChange={(o) => {
              if (!o) { setIsAddOpen(false); setEditTarget(null); }
@@ -582,3 +594,4 @@ export default function TransactionsPage() {
     </DashboardLayout>
   )
 }
+

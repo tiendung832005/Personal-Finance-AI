@@ -5,10 +5,14 @@ import com.data.personalfinanceinsightai.dto.request.ChatMessage;
 import com.data.personalfinanceinsightai.entity.User;
 import com.data.personalfinanceinsightai.service.AiCallLogService;
 import com.data.personalfinanceinsightai.service.AiService;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
@@ -20,6 +24,20 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 @Service
 @RequiredArgsConstructor
 public class AiServiceImpl implements AiService {
+
+    static final String OFF_TOPIC_RESPONSE = "Đây là trợ lý tài chính cá nhân, nên mình chỉ hỗ trợ các câu hỏi liên quan đến tài chính, chi tiêu, thu nhập, ngân sách, tiết kiệm, nợ hoặc đầu tư. Vui lòng đặt lại câu hỏi đúng chủ đề tài chính nhé.";
+
+    private static final Set<String> FINANCE_KEYWORDS = Set.of(
+            "tai chinh", "tien", "thu nhap", "luong", "chi tieu", "chi phi", "hoa don",
+            "ngan sach", "tiet kiem", "tich luy", "dau tu", "co phieu", "trai phieu",
+            "quy dau tu", "lai suat", "vay", "no", "the tin dung", "tin dung", "bao hiem",
+            "thue", "tai san", "dong tien", "giao dich", "vi dien tu", "ngan hang",
+            "tai khoan", "khoan thu", "khoan chi", "mua nha", "mua xe", "50/30/20",
+            "tra gop", "nghi huu",
+            "financial", "finance", "money", "income", "salary", "expense", "spending",
+            "budget", "saving", "investment", "invest", "debt", "loan", "credit",
+            "tax", "bank", "cash flow", "transaction", "portfolio"
+    );
 
     private final AiCallLogService aiCallLogService;
 
@@ -34,16 +52,24 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public String chatWithGemini(User user, ChatCompletionRequest request) {
-        // 1. Rate Limiting Check (20 calls per day)
+        // 1. Prepare Messages (Limit to last 6)
+        List<ChatMessage> messages = request == null ? null : request.getMessages();
+        if (messages == null || messages.isEmpty()) {
+            return "Không có tin nhắn nào được gửi.";
+        }
+
+        String latestUserMessage = findLatestUserMessage(messages);
+        if (latestUserMessage == null || latestUserMessage.isBlank()) {
+            return "Không có tin nhắn nào được gửi.";
+        }
+        if (!isFinanceRelated(latestUserMessage)) {
+            return OFF_TOPIC_RESPONSE;
+        }
+
+        // 2. Rate Limiting Check (20 calls per day)
         long dailyCount = aiCallLogService.getDailyCallCount(user, "CHATBOT");
         if (dailyCount >= 20) {
             return "Bạn đã hết lượt chat hôm nay (tối đa 20 lượt/ngày). Hãy quay lại vào ngày mai nhé!";
-        }
-
-        // 2. Prepare Messages (Limit to last 6)
-        List<ChatMessage> messages = request.getMessages();
-        if (messages == null || messages.isEmpty()) {
-            return "Không có tin nhắn nào được gửi.";
         }
 
         int startIdx = Math.max(0, messages.size() - 6);
@@ -52,7 +78,11 @@ public class AiServiceImpl implements AiService {
         // 3. Convert to Gemini Format
         List<Map<String, Object>> contents = new ArrayList<>();
         for (ChatMessage msg : recentMessages) {
-            String role = msg.getRole().equalsIgnoreCase("assistant") ? "model" : "user";
+            if (msg == null || msg.getContent() == null || msg.getContent().isBlank()) {
+                continue;
+            }
+
+            String role = "assistant".equalsIgnoreCase(msg.getRole()) ? "model" : "user";
             
             // Gemini doesn't allow two messages with the same role in a row.
             // Also, the first message in 'contents' MUST be 'user' (optional, but recommended).
@@ -69,6 +99,10 @@ public class AiServiceImpl implements AiService {
                     "role", role,
                     "parts", List.of(Map.of("text", msg.getContent()))
             ));
+        }
+
+        if (contents.isEmpty()) {
+            return "Không có tin nhắn nào được gửi.";
         }
 
         // 4. Call Gemini
@@ -177,6 +211,42 @@ public class AiServiceImpl implements AiService {
         } catch (Exception ex) {
             return "Unexpected Gemini integration error.";
         }
+    }
+
+    private String findLatestUserMessage(List<ChatMessage> messages) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            if (message != null && !"assistant".equalsIgnoreCase(message.getRole())) {
+                return message.getContent();
+            }
+        }
+        return null;
+    }
+
+    boolean isFinanceRelated(String text) {
+        String normalizedText = normalizeText(text);
+        if (normalizedText.isBlank()) {
+            return false;
+        }
+
+        if (normalizedText.matches(".*\\b\\d+[\\d.,]*\\s*(vnd|vnđ|dong|k|nghin|ngan|trieu|ty|usd|eur)\\b.*")) {
+            return true;
+        }
+
+        return FINANCE_KEYWORDS.stream().anyMatch(keyword -> containsKeyword(normalizedText, keyword));
+    }
+
+    private String normalizeText(String text) {
+        String normalized = Normalizer.normalize(text, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT);
+        return normalized.replace('đ', 'd');
+    }
+
+    private boolean containsKeyword(String normalizedText, String keyword) {
+        return Pattern.compile("(^|\\W)" + Pattern.quote(keyword) + "(\\W|$)")
+                .matcher(normalizedText)
+                .find();
     }
 
     private record GeminiGenerateResponse(List<GeminiCandidate> candidates, GeminiUsage usageMetadata) {

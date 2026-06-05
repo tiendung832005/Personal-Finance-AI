@@ -51,6 +51,7 @@ export type SharedTransaction = {
   createdByUserId: number
   createdByName: string
   scope: AccountScope
+  isAutoCategorized?: boolean
   createdAt?: string
 }
 

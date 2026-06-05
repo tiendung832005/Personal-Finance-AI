@@ -27,6 +27,7 @@ import {
   getMonthlyInsight, 
   regenerateInsight, 
   getHealthScore, 
+  regenerateHealthScore,
   getAnomalies,
   dismissAnomaly,
   InsightResponse,
@@ -57,11 +58,13 @@ const defaultTips = [
     title: 'Tối ưu chi phí di chuyển',
     description: 'Sử dụng phương tiện công cộng 2 ngày/tuần tiết kiệm ~400.000₫',
   },
+
   {
     icon: ShoppingBag,
     title: 'Lên danh sách mua sắm',
     description: 'Tránh mua sắm bốc đồng, tiết kiệm ~300.000₫/tháng',
   },
+   
   {
     icon: PiggyBank,
     title: 'Tự động tiết kiệm',

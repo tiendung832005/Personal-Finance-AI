@@ -114,7 +114,7 @@ export function GroupTransactionsTab({ groupId, isAdmin, currentUserId }: Props)
         const suggestion = res.data
 
         if (suggestion?.successful) {
-          setAiSuggestion(prevAi => {
+          setAiSuggestion((prevAi: any) => {
             setCategoryId(currentCatId => {
               const isAiDriven = prevAi && currentCatId === String(prevAi.categoryId)
               if (!currentCatId || isAiDriven) {
@@ -452,3 +452,4 @@ export function GroupTransactionsTab({ groupId, isAdmin, currentUserId }: Props)
     </div>
   )
 }
+

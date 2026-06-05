@@ -42,7 +42,9 @@ export async function apiFetch<T>(
 ): Promise<ApiResponse<T>> {
   const { skipAuth, ...requestInit } = init
   const headers = new Headers(requestInit.headers)
-  headers.set('Content-Type', 'application/json')
+  if (!(requestInit.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
 
   if (!skipAuth) {
     const token = getToken()
@@ -92,4 +94,3 @@ export function decodeJwtPayload(token: string): any | null {
     return null
   }
 }
-

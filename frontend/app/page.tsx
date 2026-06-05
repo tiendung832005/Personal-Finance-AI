@@ -214,7 +214,7 @@ export default function LoginPage() {
         description: msg,
         variant: "destructive",
       });
-    } finally {
+    } finally  {
       // googleLoading will be turned off by notification/callback as needed
     }
   };
