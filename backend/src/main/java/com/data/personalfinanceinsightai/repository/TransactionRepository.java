@@ -253,6 +253,29 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("month") String month,
             @Param("limit") int limit);
 
+    @Query(
+            value = """
+            SELECT t.category_id, COALESCE(c.name, 'Khac') AS category_name, COALESCE(SUM(t.amount), 0) AS total
+            FROM transactions t
+            LEFT JOIN categories c ON c.id = t.category_id
+            WHERE t.user_id = :userId
+              AND t.type = 'EXPENSE'
+              AND t.deleted_at IS NULL
+              AND t.family_id IS NULL
+              AND t.scope = 'PERSONAL'
+              AND t.transaction_date >= :fromInclusive
+              AND t.transaction_date <= :toInclusive
+            GROUP BY t.category_id, c.name
+            ORDER BY total DESC
+            LIMIT :limit
+            """,
+            nativeQuery = true)
+    List<Object[]> getTopExpenseCategoriesBetween(
+            @Param("userId") Long userId,
+            @Param("fromInclusive") LocalDate fromInclusive,
+            @Param("toInclusive") LocalDate toInclusive,
+            @Param("limit") int limit);
+
     /**
      * Top N danh mục chi tiêu nhiều nhất của nhóm gia đình trong tháng.
      */

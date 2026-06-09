@@ -4,6 +4,8 @@ import com.data.personalfinanceinsightai.dto.response.goal.GoalResponse;
 import com.data.personalfinanceinsightai.entity.Account;
 import com.data.personalfinanceinsightai.entity.FinancialGoal;
 import com.data.personalfinanceinsightai.repository.AccountRepository;
+import com.data.personalfinanceinsightai.service.goal.GoalAlertService;
+import com.data.personalfinanceinsightai.service.goal.GoalAlertStatus;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 public class GoalProgressCalculator {
 
     private final AccountRepository accountRepository;
+    private final GoalAlertService goalAlertService;
     private final Clock clock;
 
     public BigDecimal calculateCurrentAmount(FinancialGoal goal) {
@@ -70,6 +73,7 @@ public class GoalProgressCalculator {
         double progress = calculateProgress(current, goal.getTargetAmount());
         long monthsRemaining = calculateMonthsRemaining(goal);
         BigDecimal remaining = goal.getTargetAmount().subtract(safeCurrent).max(BigDecimal.ZERO);
+        GoalAlertStatus alertStatus = goalAlertService.checkAlert(goal, current, progress);
 
         Account linkedAccount = null;
         if (goal.getLinkedAccountId() != null) {
@@ -90,6 +94,8 @@ public class GoalProgressCalculator {
                 .monthsRemaining(monthsRemaining)
                 .monthlyNeeded(monthlyNeeded)
                 .onTrack(isOnTrack(goal, current))
+                .alertStatus(alertStatus)
+                .alertMessage(goalAlertService.getAlertMessage(alertStatus, goal))
                 .createdAt(goal.getCreatedAt())
                 .build();
     }
@@ -114,7 +120,6 @@ public class GoalProgressCalculator {
         YearMonth createdMonth = YearMonth.from(createdDate);
         YearMonth nowMonth = YearMonth.now(clock);
         YearMonth deadlineMonth = YearMonth.from(goal.getDeadline());
-
         long totalMonths = Math.max(1, ChronoUnit.MONTHS.between(createdMonth, deadlineMonth));
         long elapsedMonths = ChronoUnit.MONTHS.between(createdMonth, nowMonth);
         elapsedMonths = Math.max(0, Math.min(elapsedMonths, totalMonths));

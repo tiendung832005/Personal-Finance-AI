@@ -23,11 +23,13 @@ import {
 import { PendingInvitationsPanel } from '@/components/family/pending-invitations-panel'
 import { useCurrentUser } from '@/hooks/use-current-user'
 import { useToast } from '@/hooks/use-toast'
+import type { GoalResponse } from '@/lib/goals'
 import {
   TrendingUp,
   TrendingDown,
   Wallet,
   AlertTriangle,
+  Target,
 } from 'lucide-react'
 
 type TxRow = {
@@ -50,6 +52,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<TxRow[]>([])
   const [summary, setSummary] = useState<SummaryResponse | null | undefined>(undefined)
   const [trendFromApi, setTrendFromApi] = useState<TrendMonthPoint[] | null>(null)
+  const [goals, setGoals] = useState<GoalResponse[]>([])
   const [loading, setLoading] = useState(true)
 
   const { user } = useCurrentUser()
@@ -75,6 +78,7 @@ export default function DashboardPage() {
         // Sprint 7: Fetch AI Data
         apiFetch<any>(`/api/insights/monthly?month=${monthKey}`, { method: 'GET' }),
         apiFetch<any>(`/api/health-score?month=${monthKey}`, { method: 'GET' }),
+        apiFetch<GoalResponse[]>('/api/goals', { method: 'GET' }),
       ])
 
       const errs: string[] = []
@@ -143,6 +147,13 @@ export default function DashboardPage() {
         setRealHealthScore(healthRes.value.data.overallScore)
       }
 
+      const goalRes = settled[6]
+      if (goalRes.status === 'fulfilled' && goalRes.value.data) {
+        setGoals(goalRes.value.data)
+      } else {
+        setGoals([])
+      }
+
       if (errs.length) {
         toast({
           title: 'Một phần dữ liệu không tải được',
@@ -181,6 +192,7 @@ export default function DashboardPage() {
   }, [trendFromApi, transactions])
 
   const hasAnomaly = monthTx.some(t => Boolean(t.isAnomaly))
+  const behindGoals = goals.filter(g => g.alertStatus === 'SIGNIFICANTLY_BEHIND')
 
   return (
     <DashboardLayout>
@@ -199,6 +211,18 @@ export default function DashboardPage() {
               Phát hiện <strong>giao dịch bất thường</strong> trong tháng này.{' '}
               <a href="/insights" className="font-medium underline">
                 Xem chi tiết
+              </a>
+            </p>
+          </div>
+        )}
+
+        {behindGoals.length > 0 && (
+          <div className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3">
+            <Target className="h-5 w-5 text-destructive" />
+            <p className="text-sm text-foreground">
+              Co <strong>{behindGoals.length} muc tieu</strong> dang cham tien do.{' '}
+              <a href="/goals" className="font-medium underline">
+                Xem ke hoach
               </a>
             </p>
           </div>

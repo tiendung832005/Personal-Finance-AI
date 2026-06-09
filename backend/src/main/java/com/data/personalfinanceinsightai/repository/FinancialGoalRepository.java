@@ -12,6 +12,8 @@ public interface FinancialGoalRepository extends JpaRepository<FinancialGoal, Lo
 
     List<FinancialGoal> findByUserIdAndStatus(Long userId, GoalStatus status);
 
+    List<FinancialGoal> findByStatus(GoalStatus status);
+
     Optional<FinancialGoal> findByIdAndUserId(Long id, Long userId);
 
     List<FinancialGoal> findByLinkedAccountId(Long accountId);

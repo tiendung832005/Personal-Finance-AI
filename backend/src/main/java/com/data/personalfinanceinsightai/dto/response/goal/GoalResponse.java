@@ -1,6 +1,7 @@
 package com.data.personalfinanceinsightai.dto.response.goal;
 
 import com.data.personalfinanceinsightai.entity.enums.GoalStatus;
+import com.data.personalfinanceinsightai.service.goal.GoalAlertStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -24,5 +25,7 @@ public class GoalResponse {
     private Long monthsRemaining;
     private BigDecimal monthlyNeeded;
     private Boolean onTrack;
+    private GoalAlertStatus alertStatus;
+    private String alertMessage;
     private LocalDateTime createdAt;
 }
